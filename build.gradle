@@ -22,6 +22,6 @@ repositories {
 }
 
 dependencies {
-    compile 'org.apache.commons:commons-math3:3.2'
-    compile 'se.llbit:chunky-core:2.2-001-SNAPSHOT'
+    compile 'se.llbit:chunky-core:2.2-002-SNAPSHOT'
+    testCompile 'junit:junit:4.12'
 }
