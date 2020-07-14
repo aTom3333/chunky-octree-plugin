@@ -7,13 +7,60 @@ import se.llbit.math.Octree;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
-    // TODO Add nice comments explaining how the tree works
+    /**
+     * This works by grouping together siblings nodes into group and use a small representation fo this group
+     * Instead of being a tree of node where each node can have 0 or 8 children, and holding data
+     * for 0 or 1 block (or cube of the same blocks)
+     * we can see this tree as being a tree of groups where each group can have n children
+     * with n between 0 and 8, and data for 8-n blocks (or cube of the same blocks)
+     *
+     * So a group consist of an ordered collection of 8 nodes (that are siblings). Nodes can either be
+     * a branch or a leaf, when a node is a branch, it holds an index to its children siblings group,
+     * when it is a leaf it needs a type and eventually some additional data.
+     * The type is the id of the block the node represents. Each type of block has its own id and
+     * id are allocated linearly when needed, that is if the scene contains 500 distinct block types
+     * id will span for 0 to 499. In this representation we choose to represent the type by a 16 bits integer
+     * as most scene won't have that much type of block.
+     * The data is a 32 bits integer that can sometimes be needed, when data is not needed, we can consider
+     * it being 0. When looking at the data distribution, we see that the value 0 (sometime representing 0,
+     * most of the time meaning no data) is the most common by a big margin. The second most common value
+     * is 65536 (0x10000) (because it is used to represent a full water block and those are common).
+     * We use this knowledge to optimally represents those 2 values.
+     * The data of all leaf nodes of the group is packed together in a bit stream.
+     * The decoding is as follow: read one bit, if it is 0, the data is 0 and next bit will be the start of the next encoded data.
+     * If it is 1, read the next bit, if this one is 0, the data is 65536 and next bit will be the start of the next encoded data.
+     * If the second bit was 1 too, read the next 14 bits and interpret them as an index into the data dictionary
+     * (a simple int array).
+     * When the node is a branch node, we use a 32 bits integer to hold the index of the first byte
+     * of its children siblings group
+     *
+     * The full representation of a compressed siblings group is as follow:
+     *  - One byte that describes if each node of the group is a branch or a leaf.
+     *    One bit represents one node, 1 means the node is a branch, 0 means the node is a leaf.
+     *    For example the byte 00101000 means nodes 2 and 4 are branches and the other are leaves.
+     *  - 4*n bytes representing indexes where n is the number of branch nodes in the group
+     *    (the number of 1 bits in the first byte). Each 4 bytes field is to be read as a big endian
+     *    32 bits integer giving the index of the children siblings group
+     *  - 2*(8-n) bytes representing the types (n is the number of branch). Each 2 bytes field is to be
+     *    interpreted as a big endian 16 bits integer giving the type
+     *  - some bytes containing 8-n encoded data. Those bytes must be read as a bit stream and used to decode
+     *    the data as described earlier. The bit stream is padded to the next byte. The size taken the encoded
+     *    data cannot be known without decoding it.
+     *
+     *
+     *  This tree implementation doesn't lend itself to being writable (aka being usable for loading chunks)
+     *  because when a tree is writable, some of its leaf nodes will be converted to branch nodes (and vice-versa but
+     *  that less common) but with this representation that would mean changing the size of the sibling group,
+     *  potentially needing to moving it if the next group in memory is too close, creating holes of variable size
+     *  that would need to be filled later with new groups. Essentially that would mean implementing an almost
+     *  full blown allocating algorithm.
+     *  On top of that, at every change the data bit stream would need to be recomputed, worsening the performances
+     */
 
     byte[] treeData;
     int treeSize;
