@@ -199,7 +199,7 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
     private void ensureCapacityDataDict(int entries) {
         if(dataDict.length < dataDictSize + entries) {
             // Need reallocation
-            int newCapacity = (int)Math.max(Math.floor(treeData.length * 1.5), dataDictSize+entries);
+            int newCapacity = (int)Math.max(Math.floor(dataDict.length * 1.5), dataDictSize+entries);
             // TODO Handle overflow and stuff
             int[] newArray = new int[newCapacity];
             System.arraycopy(dataDict, 0, newArray, 0, dataDictSize);
@@ -268,12 +268,22 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
     }
 
     private int getDataOnly(int groupIndex, int childNo) {
-        int branchChildren = Integer.bitCount(treeData[groupIndex]);
+        int branchChildren = 0;
+        int leafChildrenBefore = 0;
+        byte childrenTypes = treeData[groupIndex];
+        for(int i = 0; i < 8; ++i) {
+            byte mask = (byte) (1 << 7-i);
+            if((childrenTypes & mask) != 0) {
+                ++branchChildren;
+            } else if(i < childNo) {
+                ++leafChildrenBefore;
+            }
+        }
         int startDataIndex = groupIndex + 1 + 4*branchChildren + 2*(8-branchChildren);
         BitReader bitReader = new BitReader(treeData, startDataIndex);
         // We need to read every data entry until the right one
         int data = 0;
-        for(int i = 0; i <= childNo; ++i) {
+        for(int i = 0; i <= leafChildrenBefore; ++i) {
             data = extractData(bitReader);
         }
 
