@@ -7,6 +7,7 @@ import se.llbit.math.Octree;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -391,7 +392,26 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
 
     @Override
     public void store(DataOutputStream out) throws IOException {
-        throw new RuntimeException("Not implemented yet");
+        out.writeInt(depth);
+        storeNode(out, getRoot());
+    }
+
+    private void storeNode(DataOutputStream out, Octree.NodeId node) throws IOException {
+        if(isBranch(node)) {
+            out.writeInt(Octree.BRANCH_NODE);
+            for(int i = 0; i < 8; ++i) {
+                storeNode(out, getChild(node, i));
+            }
+        } else {
+            int type = getType(node);
+            int data = getData(node);
+            if(data != 0) {
+                out.writeInt(type | Octree.DATA_FLAG);
+                out.writeInt(data);
+            } else {
+                out.writeInt(type);
+            }
+        }
     }
 
     @Override
@@ -401,7 +421,17 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
 
     @Override
     public long nodeCount() {
-        throw new RuntimeException("Not implemented yet");
+        return countNodes(getRoot());
+    }
+
+    private long countNodes(Octree.NodeId node) {
+        long total = 1;
+        if(isBranch(node)) {
+            for(int i = 0; i < 8; ++i) {
+                total += countNodes(getChild(node, i));
+            }
+        }
+        return total;
     }
 
     public static CompressedSiblingsOctree load(DataInputStream in) throws IOException {
