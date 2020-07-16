@@ -1,12 +1,12 @@
 package dev.ferrand.chunky.octree.implementations;
 
-import se.llbit.math.BigPackedOctree;
+import dev.ferrand.chunky.octree.utils.FileCache;
+import dev.ferrand.chunky.octree.utils.SingleThreadReadWriteCache;
+import dev.ferrand.chunky.octree.utils.SynchronizedWritableCache;
+import dev.ferrand.chunky.octree.utils.WritableFileCache;
 import se.llbit.math.Octree;
 
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.*;
 
 import static se.llbit.math.Octree.BRANCH_NODE;
 import static se.llbit.math.Octree.DATA_FLAG;
@@ -18,10 +18,10 @@ public class DiskOctree extends AbstractOctreeImplementation {
      */
     // TODO Implement caching
     private final File treeFile;
-    private final RandomAccessFile treeData;
     private long size;
     private long freeHead;
     private int depth;
+    private FileCache treeData;
 
     private static final class NodeId implements Octree.NodeId {
         public long nodeIndex;
@@ -34,7 +34,6 @@ public class DiskOctree extends AbstractOctreeImplementation {
     @Override
     public Octree.NodeId getRoot() {
         return new NodeId(0);
-
     }
 
     @Override
@@ -60,31 +59,27 @@ public class DiskOctree extends AbstractOctreeImplementation {
     public DiskOctree(int depth) throws IOException {
         this.depth = depth;
         treeFile = File.createTempFile("disk-octree", ".bin");
-        treeData = new RandomAccessFile(treeFile, "rw");
+        treeData = new SynchronizedWritableCache(new SingleThreadReadWriteCache(treeFile, 20, 4));
         setAt(0, 0);
         size = 1;
         freeHead = -1;
     }
 
     private long getAt(long index) {
-        synchronized(treeData) {
-            try {
-                treeData.seek(index * 8);
-                return treeData.readLong();
-            } catch(IOException e) {
-                throw new RuntimeException("Error while reading file of DiskOctree", e);
-            }
+        try {
+            return treeData.read(index);
+        } catch(IOException e) {
+            throw new RuntimeException("Error while reading file of DiskOctree", e);
         }
     }
 
     private void setAt(long index, long value) {
-        synchronized(treeData) {
-            try {
-                treeData.seek(index * 8);
-                treeData.writeLong(value);
-            } catch(IOException e) {
-                throw new RuntimeException("Error while writing file of DiskOctree", e);
-            }
+        try {
+            if(!treeData.isWritable())
+                throw new RuntimeException("Error while writing to the octree file (the file cache is not writable)");
+            ((WritableFileCache)treeData).write(index, value);
+        } catch(IOException e) {
+            throw new RuntimeException("Error while writing file of DiskOctree", e);
         }
     }
 
