@@ -87,6 +87,8 @@ public class DynamicByteArray {
     }
 
     public void writeElems(byte[] values, long fromArray, int fromValues, int count) {
+        if(count == 0)
+            return;
         long toArray = fromArray + count;
         // Use array copy to efficiently add several elements
         ensureCapacity(toArray);

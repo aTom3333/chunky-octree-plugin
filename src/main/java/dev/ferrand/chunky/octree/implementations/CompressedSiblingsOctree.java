@@ -71,6 +71,10 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
     int dataDictSize;
     long rootChildrenIndex;
 
+    private final int bytesForBranch = 4;
+    private final int bytesForType = 2;
+    private final int bitForData = 14;
+
     private static class SiblingInfo {
         public boolean isBranch = true;
         public long childrenIndex = 0;
@@ -88,18 +92,18 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
             this.data = data;
         }
 
-        public int compressedBits() {
+        public int compressedBits(int sizeBranch, int sizeType, int sizeData) {
             int total = 1; // For that encode if this is a branch or not
             if(isBranch) {
-                total += 32; // 4 bytes for the index
+                total += 8 * sizeBranch; // sizeBranch bytes for the index
             } else {
-                total += 16; // 2 bytes for the type
+                total += 8 * sizeType; // sizeType bytes for the type
                 if(data == 0) {
                     total += 1; // 0 is stored as 0
                 } else if(data == 65536) {
                     total += 2; // 65536 is stored as 10
                 } else {
-                    total += 16; // other values are stored as 11 + a 14 bits index
+                    total += 2 + sizeData; // other values are stored as 11 + a sizeData bits index
                 }
             }
 
@@ -117,10 +121,10 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
             }
         }
 
-        public long compress(CompressedSiblingsOctree dest, Map<Integer, Short> dataToDataIndex) {
+        public long compress(CompressedSiblingsOctree dest, Map<Integer, Integer> dataToDataIndex) {
             int sizeInBits = 0;
             for(int i = 0; i < 8; ++i) {
-                sizeInBits += siblings[i].compressedBits();
+                sizeInBits += siblings[i].compressedBits(dest.bytesForBranch, dest.bytesForType, dest.bitForData);
             }
             int sizeInBytes = (sizeInBits + 7) / 8;
 
@@ -128,21 +132,21 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
             int branchCounter = 0;
             int leafCounter = 0;
             byte firstByte = 0;
-            byte[] indexArray = new byte[4*8];
-            byte[] typeArray = new byte[2*8];
+            byte[] indexArray = new byte[dest.bytesForBranch*8];
+            byte[] typeArray = new byte[dest.bytesForType*8];
             BitWriter dataWriter = new BitWriter();
 
             for(int i = 0; i < 8; ++i) {
                 if(siblings[i].isBranch) {
-                    indexArray[4*branchCounter] = (byte) ((siblings[i].childrenIndex >>> 24) & 0xFF);
-                    indexArray[4*branchCounter + 1] = (byte) ((siblings[i].childrenIndex >>> 16) & 0xFF);
-                    indexArray[4*branchCounter + 2] = (byte) ((siblings[i].childrenIndex >>> 8) & 0xFF);
-                    indexArray[4*branchCounter + 3] = (byte) ((siblings[i].childrenIndex) & 0xFF);
+                    for(int j = 0; j < dest.bytesForBranch; ++j) {
+                        indexArray[dest.bytesForBranch*branchCounter + j] = (byte)((siblings[i].childrenIndex >>> ((dest.bytesForBranch - 1 - j) * 8)) & 0xFF);
+                    }
                     ++branchCounter;
                     firstByte |= (1 << (7 - i));
                 } else {
-                    typeArray[2*leafCounter] = (byte) (((siblings[i].type >>> 8)) & 0xFF);
-                    typeArray[2*leafCounter + 1] = (byte) (((siblings[i].type)) & 0xFF);
+                    for(int j = 0; j < dest.bytesForType; ++j) {
+                        typeArray[dest.bytesForType*leafCounter + j] = (byte)((siblings[i].type >>> ((dest.bytesForType - 1 - j) * 8)) & 0xFF);
+                    }
                     ++leafCounter;
                     int data = siblings[i].data;
                     if(data == 0) {
@@ -151,24 +155,24 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
                         dataWriter.write(2, 0b10);
                     } else {
                         dataWriter.write(2, 0b11);
-                        short dataIndex = dest.getDataIndex(data, dataToDataIndex);
-                        dataWriter.write(14, dataIndex);
+                        int dataIndex = dest.getDataIndex(data, dataToDataIndex);
+                        dataWriter.write(dest.bitForData, dataIndex);
                     }
                 }
             }
 
             assert branchCounter + leafCounter == 8;
-            assert 1 + 4*branchCounter + 2*leafCounter + dataWriter.getSize() == sizeInBytes;
+            assert 1 + dest.bytesForBranch*branchCounter + dest.bytesForType*leafCounter + dataWriter.getSize() == sizeInBytes;
 
             // Write first byte
             long thisGroupIndex = dest.treeData.getSize();
             dest.treeData.pushBack(firstByte);
 
             // Write child indices
-            dest.treeData.addElems(indexArray, 4*branchCounter);
+            dest.treeData.addElems(indexArray, dest.bytesForBranch*branchCounter);
 
             // Write types
-            dest.treeData.addElems(typeArray, 2*leafCounter);
+            dest.treeData.addElems(typeArray, dest.bytesForType*leafCounter);
 
             // Write data
             dest.treeData.addElems(dataWriter.getData(), dataWriter.getSize());
@@ -177,14 +181,14 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
         }
     }
 
-    private short getDataIndex(int data, Map<Integer, Short> dataToDataIndex) {
+    private int getDataIndex(int data, Map<Integer, Integer> dataToDataIndex) {
         if(dataToDataIndex.containsKey(data)) {
-            short index = dataToDataIndex.get(data);
+            int index = dataToDataIndex.get(data);
             assert dataDict[index] == data;
             return index;
         } else {
             ensureCapacityDataDict(1);
-            short index = (short) dataDictSize;
+            int index = dataDictSize;
             ++dataDictSize;
             dataDict[index] = data;
             dataToDataIndex.put(data, index);
@@ -250,12 +254,14 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
             }
         }
 
-        long childIndexIndex = groupIndex + 1 + 4*branchBeforeCount;
+        long childIndexIndex = groupIndex + 1 + bytesForBranch*branchBeforeCount;
 
-        long childIndex = ((treeData.get(childIndexIndex) << 24) & 0xFF000000)
-                       | ((treeData.get(childIndexIndex+1) << 16) & 0xFF0000)
-                       | ((treeData.get(childIndexIndex+2) << 8) & 0xFF00)
-                       | (treeData.get(childIndexIndex+3) & 0xFF);
+        long childIndex = 0;
+        for(int i = 0; i < bytesForBranch; ++i) {
+            childIndex <<= 8;
+            childIndex |= (treeData.get(childIndexIndex+i) & 0xFF);
+        }
+
         return childIndex;
     }
 
@@ -272,9 +278,13 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
             }
         }
 
-        long typeIndex = groupIndex + 1 + 4*branchChildren + 2*leafChildrenBefore;
+        long typeIndex = groupIndex + 1 + bytesForBranch*branchChildren + bytesForType*leafChildrenBefore;
 
-        int type = ((treeData.get(typeIndex) << 8) & 0xFF00) | (treeData.get(typeIndex+1) & 0xFF);
+        int type = 0;
+        for(int i = 0; i < bytesForType; ++i) {
+            type <<= 8;
+            type |= (treeData.get(typeIndex+i) & 0xFF);
+        }
 
         return type;
     }
@@ -290,8 +300,8 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
             // 01 means data is 65536
             return 65536;
         }
-        // 11 means we need to read the next 14 bits and they will be an index in the dataDict array
-        int dataIndex = (int) bitReader.read(14);
+        // 11 means we need to read the next n bits and they will be an index in the dataDict array
+        int dataIndex = (int) bitReader.read(bitForData);
         return dataDict[dataIndex];
     }
 
@@ -307,8 +317,8 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
                 ++leafChildrenBefore;
             }
         }
-        long startDataIndex = groupIndex + 1 + 4*branchChildren + 2*(8-branchChildren);
-        byte[] bitstream = treeData.subArray(startDataIndex, 8*2);
+        long startDataIndex = groupIndex + 1 + bytesForBranch*branchChildren + bytesForType*(8-branchChildren);
+        byte[] bitstream = treeData.subArray(startDataIndex, ((2+bitForData) * 8 + 7) / 8);
         BitReader bitReader = new BitReader(bitstream, 0);
         // We need to read every data entry until the right one
         int data = 0;
@@ -380,31 +390,17 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
     }
 
     private Octree.NodeId getHelper(int x, int y, int z) {
-        try {
-            Octree.NodeId node = getRoot();
-            int level = depth;
-            while(isBranch(node)) {
-                level -= 1;
-                int lx = x >>> level;
-                int ly = y >>> level;
-                int lz = z >>> level;
-                node = getChild(node, (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1)));
-            }
-
-            return node;
-        } catch(Exception e) {
-            Octree.NodeId node = getRoot();
-            int level = depth;
-            while(isBranch(node)) {
-                level -= 1;
-                int lx = x >>> level;
-                int ly = y >>> level;
-                int lz = z >>> level;
-                node = getChild(node, (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1)));
-            }
-
-            return node;
+        Octree.NodeId node = getRoot();
+        int level = depth;
+        while(isBranch(node)) {
+            level -= 1;
+            int lx = x >>> level;
+            int ly = y >>> level;
+            int lz = z >>> level;
+            node = getChild(node, (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1)));
         }
+
+        return node;
     }
 
     @Override
@@ -472,7 +468,7 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
         }
         UncompressedSiblings[] ancestors = new UncompressedSiblings[depth];
         ancestors[0] = new UncompressedSiblings();
-        Map<Integer, Short> dataToDataIndex = new HashMap<>();
+        Map<Integer, Integer> dataToDataIndex = new HashMap<>();
         for(int i = 0; i < 8; ++i) {
             octree.loadNode(in, 0, ancestors, i, dataToDataIndex);
         }
@@ -482,7 +478,7 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
         return octree;
     }
 
-    private void loadNode(DataInputStream in, int currentDepth, UncompressedSiblings[] ancestors, int childNumber, Map<Integer, Short> dataToDataIndex) throws IOException {
+    private void loadNode(DataInputStream in, int currentDepth, UncompressedSiblings[] ancestors, int childNumber, Map<Integer, Integer> dataToDataIndex) throws IOException {
         int type = in.readInt();
         if(type == Octree.BRANCH_NODE) {
             // Write in the siblings group this node is a part of that it is a branch

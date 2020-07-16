@@ -57,6 +57,26 @@ public class DynamicByteArrayTest {
     }
 
     @Test
+    public void bigWriteElemsOnEdge() {
+        DynamicByteArray array = new DynamicByteArray();
+        long offset = 50;
+        long size = (1 << 24) - offset;
+
+        byte[] value = new byte[(int) size];
+        for(long i = 0; i < size; ++i) {
+            value[(int) i] = (byte) (i & 0x7F);
+        }
+
+        array.writeElems(value, offset, 0, (int) size);
+
+        assertEquals(offset + size, array.getSize());
+
+        for(long i = 0; i < size; ++i) {
+            assertEquals((byte) (i & 0x7F), array.get(offset + i));
+        }
+    }
+
+    @Test
     public void bigReadElems() {
         DynamicByteArray array = new DynamicByteArray();
         long size = (1 << 24);
