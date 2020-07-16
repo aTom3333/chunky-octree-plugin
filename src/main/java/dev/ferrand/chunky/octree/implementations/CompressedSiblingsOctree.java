@@ -3,6 +3,7 @@ package dev.ferrand.chunky.octree.implementations;
 import dev.ferrand.chunky.octree.utils.BitReader;
 import dev.ferrand.chunky.octree.utils.BitWriter;
 import dev.ferrand.chunky.octree.utils.DynamicByteArray;
+import se.llbit.chunky.PersistentSettings;
 import se.llbit.chunky.chunk.BlockPalette;
 import se.llbit.chunky.world.Material;
 import se.llbit.log.Log;
@@ -71,9 +72,23 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
     int dataDictSize;
     long rootChildrenIndex;
 
-    private final int bytesForBranch = 4;
-    private final int bytesForType = 2;
-    private final int bitForData = 14;
+    private final int bytesForBranch = PersistentSettings.settings.getInt("compressedSiblings.bytesForIndex", 4);
+    private final int bytesForType = PersistentSettings.settings.getInt("compressedSiblings.bytesForType", 2);
+    private final int bitForData = PersistentSettings.settings.getInt("compressedSiblings.bitsForData", 14);
+
+    /**
+     * Checks that a given value fits in a given number of bits
+     */
+    public static boolean checkFitsBits(long value, int bits) {
+        long mask = (1 << bits) - 1;
+        return (value & mask) == 0;
+    }
+    /**
+     * Checks that a given value fits in a given number of bytes
+     */
+    public static boolean checkFitsBytes(long value, int bytes) {
+        return checkFitsBits(value, bytes * 8);
+    }
 
     private static class SiblingInfo {
         public boolean isBranch = true;
@@ -138,12 +153,20 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
 
             for(int i = 0; i < 8; ++i) {
                 if(siblings[i].isBranch) {
+                    if(!checkFitsBytes(siblings[i].childrenIndex, dest.bytesForBranch)) {
+                        throw new RuntimeException("Not enough bytes to store an index. Change the number of bytes for index in the Advanced Octree Options tab.");
+                    }
+
                     for(int j = 0; j < dest.bytesForBranch; ++j) {
                         indexArray[dest.bytesForBranch*branchCounter + j] = (byte)((siblings[i].childrenIndex >>> ((dest.bytesForBranch - 1 - j) * 8)) & 0xFF);
                     }
                     ++branchCounter;
                     firstByte |= (1 << (7 - i));
                 } else {
+                    if(!checkFitsBytes(siblings[i].type, dest.bytesForType)) {
+                        throw new RuntimeException("Not enough bytes to store a type. Change the number of bytes for type in the Advanced Octree Options tab.");
+                    }
+
                     for(int j = 0; j < dest.bytesForType; ++j) {
                         typeArray[dest.bytesForType*leafCounter + j] = (byte)((siblings[i].type >>> ((dest.bytesForType - 1 - j) * 8)) & 0xFF);
                     }
@@ -156,6 +179,9 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
                     } else {
                         dataWriter.write(2, 0b11);
                         int dataIndex = dest.getDataIndex(data, dataToDataIndex);
+                        if(!checkFitsBits(dataIndex, dest.bitForData)) {
+                            throw new RuntimeException("Not enough bits to store a data piece. Change the number of bits for data in the Advanced Octree Options tab.");
+                        }
                         dataWriter.write(dest.bitForData, dataIndex);
                     }
                 }
