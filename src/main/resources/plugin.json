@@ -2,7 +2,7 @@
   "name": "OctreePlugin",
   "author": "a_Tom",
   "main": "dev.ferrand.chunky.octree.OctreePlugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "targetVersion": "2.2.0-322-g61e6a595",
   "description": "Add more octree implementations."
 }
