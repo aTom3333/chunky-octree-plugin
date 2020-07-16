@@ -22,7 +22,6 @@ Advantages of this implementation over Packed:
 Drawbacks of this implementation over Packed:
  - Cannot be built. This implementation cannot be used for building the tree using the _Load Selected Chunks_ or _Reload Chunks_ button.
    It can only be loaded from an existing dump (possibly made with any other implementation).
- - The maximum number of nodes that can be stored is lower (no exact number as nodes takes a variable space in this implementation).
  - Two times slower. Measured render time for the same scene was doubled using this implementation. 
 
 #### Implementation specific instructions
@@ -39,5 +38,11 @@ for your scene when alone, but you don't have enough memory to fit it and the fr
 a small frame buffer (by choosing a small resolution), load your scene with the Packed Implementation, save it,
 reload it with the Compressed Siblings Implementation (by modifying the `.json` file) and then you can change
 the resolution to be whatever you want. 
+
+#### Advanced options
+
+In the _Advanced Octree Options_ tab added by this plug-in you can tweak some parameters to get
+a good balance between memory saving and limited scene. In particular if you wish to render a very big scene
+you should increase the number of `bytes for index`.
 
 [chunky]: https://chunky.llbit.se/
