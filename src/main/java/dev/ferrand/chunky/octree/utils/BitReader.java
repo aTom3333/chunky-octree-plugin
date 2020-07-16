@@ -1,4 +1,4 @@
-package dev.ferrand.chunky.octree;
+package dev.ferrand.chunky.octree.utils;
 
 public class BitReader {
     private byte[] data;

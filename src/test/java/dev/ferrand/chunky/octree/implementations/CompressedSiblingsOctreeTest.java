@@ -1,5 +1,6 @@
-package dev.ferrand.chunky.octree;
+package dev.ferrand.chunky.octree.implementations;
 
+import dev.ferrand.chunky.octree.implementations.CompressedSiblingsOctree;
 import org.junit.Test;
 
 import java.io.*;

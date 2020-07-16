@@ -1,5 +1,6 @@
 package dev.ferrand.chunky.octree;
 
+import dev.ferrand.chunky.octree.implementations.CompressedSiblingsOctree;
 import se.llbit.chunky.Plugin;
 import se.llbit.chunky.main.Chunky;
 import se.llbit.chunky.main.ChunkyOptions;

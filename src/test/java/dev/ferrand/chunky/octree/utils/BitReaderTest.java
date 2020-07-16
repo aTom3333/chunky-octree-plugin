@@ -1,5 +1,6 @@
-package dev.ferrand.chunky.octree;
+package dev.ferrand.chunky.octree.utils;
 
+import dev.ferrand.chunky.octree.utils.BitReader;
 import org.junit.Test;
 
 import static org.junit.Assert.*;

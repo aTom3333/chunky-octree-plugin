@@ -1,5 +1,7 @@
-package dev.ferrand.chunky.octree;
+package dev.ferrand.chunky.octree.implementations;
 
+import dev.ferrand.chunky.octree.utils.BitReader;
+import dev.ferrand.chunky.octree.utils.BitWriter;
 import se.llbit.chunky.chunk.BlockPalette;
 import se.llbit.chunky.world.Material;
 import se.llbit.log.Log;
