@@ -16,10 +16,10 @@ public class CompressedSiblingsOctreeTest {
         assertNotNull(expected);
 
         CompressedSiblingsOctree octree = CompressedSiblingsOctree.load(new DataInputStream(input));
-        int size = octree.treeSize;
-        for(int i = 0; i < size; ++i) {
+        long size = octree.treeData.getSize();
+        for(long i = 0; i < size; ++i) {
             byte expectedByte = (byte) expected.read();
-            byte actualByte = octree.treeData[i];
+            byte actualByte = octree.treeData.get(i);
             assertEquals(expectedByte, actualByte);
         }
     }

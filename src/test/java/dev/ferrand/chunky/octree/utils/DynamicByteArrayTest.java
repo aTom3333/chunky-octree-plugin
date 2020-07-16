@@ -56,4 +56,21 @@ public class DynamicByteArrayTest {
         }
     }
 
+    @Test
+    public void bigReadElems() {
+        DynamicByteArray array = new DynamicByteArray();
+        long size = (1 << 24);
+        long offset = 50;
+
+        for(long i = 0; i < offset+size; ++i) {
+            array.pushBack((byte)(i & 0x7F));
+        }
+
+        byte[] result = array.subArray(offset, (int) size);
+
+        for(long i = 0; i < size; ++i) {
+            assertEquals((byte) ((offset+i) & 0x7F), result[(int) i]);
+        }
+    }
+
 }

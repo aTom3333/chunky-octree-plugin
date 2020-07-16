@@ -111,6 +111,29 @@ public class DynamicByteArray {
         writeElems(values, size, 0, count);
     }
 
+    public byte[] subArray(long from, int count) {
+        byte[] result = new byte[count];
+
+        long toArray = from + count;
+        toArray = Math.min(toArray, size);
+        int fromResult = 0;
+        --toArray;
+        long fullArrayIndex;
+        while((fullArrayIndex = (from >>> FULL_ARRAY_SHIFT)) != (toArray >>> FULL_ARRAY_SHIFT)) {
+            // Copy left side when overlapping an edge
+            long to = (fullArrayIndex + 1) * MAX_ARRAY_SIZE - 1;
+            int subCount = (int) (to - from + 1);
+            System.arraycopy(data.get((int) fullArrayIndex), (int) (from & SUB_ARRAY_MASK), result, fromResult, subCount);
+            fromResult += subCount;
+            from += subCount;
+        }
+
+        // Copy the final part (and only when not overlapping an edge
+        System.arraycopy(data.get((int) fullArrayIndex), (int) (from & SUB_ARRAY_MASK), result, fromResult, (int) (toArray - from + 1));
+
+        return result;
+    }
+
     public long getSize() {
         return size;
     }
