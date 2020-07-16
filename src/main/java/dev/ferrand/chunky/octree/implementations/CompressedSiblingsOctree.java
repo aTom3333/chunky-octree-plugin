@@ -80,7 +80,7 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
      * Checks that a given value fits in a given number of bits
      */
     public static boolean checkFitsBits(long value, int bits) {
-        long mask = (1 << bits) - 1;
+        long mask = -(1L << bits);
         return (value & mask) == 0;
     }
     /**
@@ -154,7 +154,10 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
             for(int i = 0; i < 8; ++i) {
                 if(siblings[i].isBranch) {
                     if(!checkFitsBytes(siblings[i].childrenIndex, dest.bytesForBranch)) {
-                        throw new RuntimeException("Not enough bytes to store an index. Change the number of bytes for index in the Advanced Octree Options tab.");
+                        String msg = "Not enough bytes to store an index. Change the number of bytes for index in the Advanced Octree Options tab.";
+                        System.out.println(siblings[i].childrenIndex);
+                        Log.error(msg);
+                        throw new RuntimeException(msg);
                     }
 
                     for(int j = 0; j < dest.bytesForBranch; ++j) {
@@ -164,7 +167,9 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
                     firstByte |= (1 << (7 - i));
                 } else {
                     if(!checkFitsBytes(siblings[i].type, dest.bytesForType)) {
-                        throw new RuntimeException("Not enough bytes to store a type. Change the number of bytes for type in the Advanced Octree Options tab.");
+                        String msg = "Not enough bytes to store a type. Change the number of bytes for type in the Advanced Octree Options tab.";
+                        Log.error(msg);
+                        throw new RuntimeException(msg);
                     }
 
                     for(int j = 0; j < dest.bytesForType; ++j) {
@@ -180,7 +185,9 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
                         dataWriter.write(2, 0b11);
                         int dataIndex = dest.getDataIndex(data, dataToDataIndex);
                         if(!checkFitsBits(dataIndex, dest.bitForData)) {
-                            throw new RuntimeException("Not enough bits to store a data piece. Change the number of bits for data in the Advanced Octree Options tab.");
+                            String msg = "Not enough bits to store a data piece. Change the number of bits for data in the Advanced Octree Options tab.";
+                            Log.error(msg);
+                            throw new RuntimeException(msg);
                         }
                         dataWriter.write(dest.bitForData, dataIndex);
                     }
@@ -518,9 +525,6 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
 
             // The created siblings group is now complete and can be saved compressed
             long savedIndex = ancestors[currentDepth+1].compress(this, dataToDataIndex);
-            if(savedIndex < 0) {
-                Thread.dumpStack();
-            }
             ancestors[currentDepth].siblings[childNumber].childrenIndex = savedIndex;
 
         } else {
