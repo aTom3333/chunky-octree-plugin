@@ -6,12 +6,20 @@ import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 
 public class SingleThreadReadWriteCache implements WritableFileCache {
 
     private static class Buffer {
         public boolean dirty;
         public long[] data;
+        public BufferListNode node;
+    }
+
+    private static class BufferListNode {
+        public int index;
+        public BufferListNode next;
+        public BufferListNode prev;
     }
 
     private final RandomAccessFile file;
@@ -20,8 +28,12 @@ public class SingleThreadReadWriteCache implements WritableFileCache {
     private final long mask;
     private final ArrayList<Buffer> buffers;
     private long fileLength;
-    private final LinkedList<Integer> loadedBuffers;
+    private BufferListNode loadedBuffersFirst;
+    private BufferListNode loadedBuffersLast;
+    private int loadedBuffersCount;
     private final int bufferCount;
+
+    private final byte[] rawData;
 
     private int diskReads = 0;
     private int diskWrites = 0;
@@ -34,8 +46,11 @@ public class SingleThreadReadWriteCache implements WritableFileCache {
         buffers = new ArrayList<>();
         fileLength = 0;
         expandFileIfNeeded(Files.size(fileToCache.toPath()));
-        loadedBuffers = new LinkedList<>();
+        loadedBuffersFirst = null;
+        loadedBuffersLast = null;
+        loadedBuffersCount = 0;
         this.bufferCount = bufferCount;
+        rawData = new byte[(int) (bufferSize * 8)];
     }
 
     private void expandFileIfNeeded(long size) throws IOException {
@@ -60,7 +75,6 @@ public class SingleThreadReadWriteCache implements WritableFileCache {
         ++diskReads;
         Buffer newBuffer = new Buffer();
         newBuffer.dirty = false;
-        byte[] rawData = new byte[(int) (bufferSize*8)];
         expandFileIfNeeded(bufferSize * (bufferIndex+1));
         file.seek(bufferIndex * bufferSize * 8);
         file.readFully(rawData);
@@ -80,6 +94,7 @@ public class SingleThreadReadWriteCache implements WritableFileCache {
         newBuffer.data = bufferData;
 
         buffers.set(bufferIndex, newBuffer);
+        ++loadedBuffersCount;
     }
 
     /**
@@ -93,7 +108,6 @@ public class SingleThreadReadWriteCache implements WritableFileCache {
      */
     private void saveBuffer(int bufferIndex) throws IOException {
         ++diskWrites;
-        byte[] rawData = new byte[(int) (bufferSize * 8)];
         long[] data = buffers.get(bufferIndex).data;
         for(int i = 0; i < bufferSize; ++i) {
             int rawIndex = 8*i;
@@ -123,26 +137,51 @@ public class SingleThreadReadWriteCache implements WritableFileCache {
             saveBuffer(bufferIndex);
         }
         buffers.set(bufferIndex, null);
+        --loadedBuffersCount;
     }
 
     /**
      * Remove the buffer that wasn't used for the longer
      */
     private void removeOldestBuffer() throws IOException {
-        if(loadedBuffers.size() >= bufferCount) {
-            int bufferIndex = loadedBuffers.removeLast();
-            removeBufferFromCache(bufferIndex);
+        if(loadedBuffersCount >= bufferCount) {
+            BufferListNode last = loadedBuffersLast;
+            BufferListNode newLast = last.prev;
+            newLast.next = null;
+            loadedBuffersLast = newLast;
+            removeBufferFromCache(last.index);
         }
     }
 
     private void trackBuffer(int bufferIndex) {
-        loadedBuffers.addFirst(bufferIndex);
+        BufferListNode node = new BufferListNode();
+        buffers.get(bufferIndex).node = node;
+        node.index = bufferIndex;
+        if(loadedBuffersFirst == null) {
+            loadedBuffersFirst = node;
+            loadedBuffersLast = node;
+        } else {
+            node.next = loadedBuffersFirst;
+            loadedBuffersFirst.prev = node;
+            loadedBuffersFirst = node;
+        }
     }
 
     private void notifyUsage(int bufferIndex) {
-        // TODO This could be made more efficient if the buffer kept a reference to its node in the linked list, might need a custom implementation tho
-        loadedBuffers.removeFirstOccurrence(bufferIndex);
-        loadedBuffers.addFirst(bufferIndex);
+        BufferListNode node = buffers.get(bufferIndex).node;
+        if(node.prev == null) {
+            return;
+        }
+        node.prev.next = node.next;
+        if(node.next == null) {
+            loadedBuffersLast = node.prev;
+        } else {
+            node.next.prev = node.prev;
+        }
+        node.prev = null;
+        node.next = loadedBuffersFirst;
+        loadedBuffersFirst.prev = node;
+        loadedBuffersFirst = node;
     }
 
     private void addBufferToCache(int bufferIndex) throws IOException {
@@ -153,8 +192,8 @@ public class SingleThreadReadWriteCache implements WritableFileCache {
         }
 
         removeOldestBuffer();
-        trackBuffer(bufferIndex);
         loadBuffer(bufferIndex);
+        trackBuffer(bufferIndex);
     }
 
     @Override

@@ -8,8 +8,8 @@ import se.llbit.math.Octree;
 
 import java.io.*;
 
-import static se.llbit.math.Octree.BRANCH_NODE;
-import static se.llbit.math.Octree.DATA_FLAG;
+import static se.llbit.math.Octree.*;
+import static se.llbit.math.Octree.WHATEVER_TYPE;
 
 public class DiskOctree extends AbstractOctreeImplementation {
     /**
@@ -22,6 +22,10 @@ public class DiskOctree extends AbstractOctreeImplementation {
     private long freeHead;
     private int depth;
     private FileCache treeData;
+
+    private long createTime;
+    private long startFinalizationTime;
+    private long endFinalizationTime;
 
     private static final class NodeId implements Octree.NodeId {
         public long nodeIndex;
@@ -59,10 +63,12 @@ public class DiskOctree extends AbstractOctreeImplementation {
     public DiskOctree(int depth) throws IOException {
         this.depth = depth;
         treeFile = File.createTempFile("disk-octree", ".bin");
-        treeData = new SynchronizedWritableCache(new SingleThreadReadWriteCache(treeFile, 20, 4));
+        int temp = 12;
+        treeData = new SingleThreadReadWriteCache(treeFile, temp, 4 << (20-temp));
         setAt(0, 0);
         size = 1;
         freeHead = -1;
+        createTime = System.nanoTime();
     }
 
     private long getAt(long index) {
@@ -200,6 +206,50 @@ public class DiskOctree extends AbstractOctreeImplementation {
     @Override
     public int getDepth() {
         return depth;
+    }
+
+    @Override
+    public void startFinalization() {
+        startFinalizationTime = System.nanoTime();
+        System.out.printf("Loading time: %dns\n", startFinalizationTime - createTime);
+    }
+
+    @Override
+    public void endFinalization() {
+        // There is a bunch of WHATEVER nodes we should try to merge
+        finalizationNode(0);
+        endFinalizationTime = System.nanoTime();
+        System.out.printf("Finalization time: %dns\n", endFinalizationTime - startFinalizationTime);
+        System.out.printf("Total time: %dns\n", endFinalizationTime - createTime);
+        treeData = new SynchronizedWritableCache((WritableFileCache) treeData);
+    }
+
+    private void finalizationNode(long nodeIndex) {
+        boolean canMerge = true;
+        int mergedType = WHATEVER_TYPE;
+        int mergedData = 0;
+        for(int i = 0; i < 8; ++i) {
+            long childIndex = getAt(nodeIndex) + i;
+            if(getAt(childIndex) > 0) {
+                finalizationNode(childIndex);
+                // The node may have been merged, retest if it still a branch node
+                if(getAt(childIndex) > 0) {
+                    canMerge = false;
+                }
+            }
+            if(canMerge) {
+                if(mergedType == WHATEVER_TYPE) {
+                    long value = getAt(childIndex);
+                    mergedType = typeFromValue(value);
+                    mergedData = dataFromValue(value);
+                } else if(!(typeFromValue(getAt(childIndex)) == WHATEVER_TYPE || getAt(childIndex) == valueFromTypeData(mergedType, mergedData))) {
+                    canMerge = false;
+                }
+            }
+        }
+        if(canMerge) {
+            mergeNode(nodeIndex, valueFromTypeData(mergedType, mergedData));
+        }
     }
 
     public static DiskOctree load(DataInputStream in) throws IOException {
