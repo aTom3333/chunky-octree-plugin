@@ -7,7 +7,6 @@ import se.llbit.math.Octree;
 import java.io.*;
 
 import static se.llbit.math.Octree.*;
-import static se.llbit.math.Octree.WHATEVER_TYPE;
 
 public class DiskOctree extends AbstractOctreeImplementation {
     /**
@@ -222,7 +221,7 @@ public class DiskOctree extends AbstractOctreeImplementation {
 
     private void finalizationNode(long nodeIndex) {
         boolean canMerge = true;
-        int mergedType = WHATEVER_TYPE;
+        int mergedType = ANY_TYPE;
         int mergedData = 0;
         for(int i = 0; i < 8; ++i) {
             long childIndex = getAt(nodeIndex) + i;
@@ -234,11 +233,11 @@ public class DiskOctree extends AbstractOctreeImplementation {
                 }
             }
             if(canMerge) {
-                if(mergedType == WHATEVER_TYPE) {
+                if(mergedType == ANY_TYPE) {
                     long value = getAt(childIndex);
                     mergedType = typeFromValue(value);
                     mergedData = dataFromValue(value);
-                } else if(!(typeFromValue(getAt(childIndex)) == WHATEVER_TYPE || getAt(childIndex) == valueFromTypeData(mergedType, mergedData))) {
+                } else if(!(typeFromValue(getAt(childIndex)) == ANY_TYPE || getAt(childIndex) == valueFromTypeData(mergedType, mergedData))) {
                     canMerge = false;
                 }
             }

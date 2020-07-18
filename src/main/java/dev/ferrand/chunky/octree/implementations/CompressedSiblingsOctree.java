@@ -154,7 +154,7 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
             for(int i = 0; i < 8; ++i) {
                 if(siblings[i].isBranch) {
                     if(!checkFitsBytes(siblings[i].childrenIndex, dest.bytesForBranch)) {
-                        String msg = "Not enough bytes to store an index. Change the number of bytes for index in the Advanced Octree Options tab.";
+                        String msg = String.format("Not enough bytes to store an index (%d). Change the number of bytes for index in the Advanced Octree Options tab.", siblings[i].childrenIndex);
                         System.out.println(siblings[i].childrenIndex);
                         Log.error(msg);
                         throw new RuntimeException(msg);
@@ -167,7 +167,7 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
                     firstByte |= (1 << (7 - i));
                 } else {
                     if(!checkFitsBytes(siblings[i].type, dest.bytesForType)) {
-                        String msg = "Not enough bytes to store a type. Change the number of bytes for type in the Advanced Octree Options tab.";
+                        String msg = String.format("Not enough bytes to store a type (%d). Change the number of bytes for type in the Advanced Octree Options tab.", siblings[i].type);
                         Log.error(msg);
                         throw new RuntimeException(msg);
                     }
@@ -532,6 +532,9 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
             if((type & Octree.DATA_FLAG) != 0) {
                 type ^= Octree.DATA_FLAG;
                 data = in.readInt();
+            }
+            if(type == Octree.ANY_TYPE) {
+                type = 0; // Replace by anything but don't keep it because we can't store it
             }
             ancestors[currentDepth].siblings[childNumber].makeLeaf(type, data);
         }
