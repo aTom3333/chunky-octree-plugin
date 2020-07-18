@@ -249,6 +249,10 @@ public class DiskOctree extends AbstractOctreeImplementation {
         int depth = in.readInt();
         DiskOctree tree = new DiskOctree(depth);
         tree.loadNode(in, 0);
+        if(tree.treeData.isWritable()) {
+            ((WritableFileCache)tree.treeData).flush();
+        }
+        tree.treeData = new ThreadSafeReadCache(tree.treeFile, 11, 4 << 9);
         return tree;
     }
 
