@@ -1,6 +1,7 @@
 package dev.ferrand.chunky.octree.implementations;
 
 import dev.ferrand.chunky.octree.utils.*;
+import se.llbit.chunky.PersistentSettings;
 import se.llbit.math.Octree;
 
 import java.io.*;
@@ -18,6 +19,9 @@ public class DiskOctree extends AbstractOctreeImplementation {
     private long freeHead;
     private final int depth;
     private FileCache treeData;
+
+    private final int cacheSize = PersistentSettings.settings.getInt("disk.cacheSize", 11);
+    private final int cacheNumber = PersistentSettings.settings.getInt("disk.cacheNumber", 2048);
 
     private static final class NodeId implements Octree.NodeId {
         public long nodeIndex;
@@ -55,8 +59,7 @@ public class DiskOctree extends AbstractOctreeImplementation {
     public DiskOctree(int depth) throws IOException {
         this.depth = depth;
         treeFile = File.createTempFile("disk-octree", ".bin");
-        int temp = 12;
-        treeData = new SingleThreadReadWriteCache(treeFile, temp, 4 << (20-temp));
+        treeData = new SingleThreadReadWriteCache(treeFile, cacheSize, cacheNumber);
         setAt(0, 0);
         size = 1;
         freeHead = -1;
@@ -211,7 +214,7 @@ public class DiskOctree extends AbstractOctreeImplementation {
             if(treeData.isWritable()) {
                 ((WritableFileCache)treeData).flush();
             }
-            treeData = new ThreadSafeReadCache(treeFile, 11, 4 << 9);
+            treeData = new ThreadSafeReadCache(treeFile, cacheSize, cacheNumber);
         } catch(IOException e) {
             throw new RuntimeException("Error while finalizing the octree", e);
         }
@@ -252,7 +255,7 @@ public class DiskOctree extends AbstractOctreeImplementation {
         if(tree.treeData.isWritable()) {
             ((WritableFileCache)tree.treeData).flush();
         }
-        tree.treeData = new ThreadSafeReadCache(tree.treeFile, 11, 4 << 9);
+        tree.treeData = new ThreadSafeReadCache(tree.treeFile, tree.cacheSize, tree.cacheNumber);
         return tree;
     }
 

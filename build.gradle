@@ -8,6 +8,9 @@ javafx {
     modules = [ 'javafx.controls', 'javafx.fxml']
 }
 
+apply plugin: 'application'
+mainClassName = 'dev.ferrand.chunky.octree.OctreePlugin'
+
 group 'dev.ferrand'
 version '0.1.1'
 

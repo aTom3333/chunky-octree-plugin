@@ -5,6 +5,8 @@
 <?import javafx.scene.control.TitledPane?>
 <?import javafx.scene.layout.*?>
 <?import se.llbit.chunky.ui.IntegerAdjuster?>
+<?import javafx.scene.control.ChoiceBox?>
+<?import javafx.scene.control.Label?>
 <fx:root type="javafx.scene.control.ScrollPane" xmlns="http://javafx.com/javafx/10.0.1" xmlns:fx="http://javafx.com/fxml/1">
    <content>
       <VBox spacing="10.0">
@@ -12,25 +14,47 @@
               <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
           </padding>
          <children>
-            <TitledPane animated="false" prefWidth="300.0" text="Compressed Siblings Implementation">
-              <content>
-                <AnchorPane>
-                     <children>
-                        <VBox alignment="CENTER" prefHeight="52.0" prefWidth="262.0" spacing="5.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                           <children>
-                              <IntegerAdjuster fx:id="bytesForIndex" alignment="CENTER" prefHeight="26.0" prefWidth="95.0" />
-                              <IntegerAdjuster fx:id="bytesForType" alignment="CENTER" prefHeight="26.0"
-                                               prefWidth="95.0"/>
-                              <IntegerAdjuster fx:id="bitsForData" alignment="CENTER" prefHeight="26.0" prefWidth="95.0" />
-                           </children>
-                           <padding>
-                              <Insets top="5.0" />
-                           </padding>
-                        </VBox>
-                     </children>
-                  </AnchorPane>
-              </content>
-            </TitledPane>
+             <TitledPane animated="false" prefWidth="300.0" text="Compressed Siblings Implementation">
+                 <content>
+                     <AnchorPane>
+                         <children>
+                             <VBox alignment="CENTER" prefHeight="52.0" prefWidth="262.0" spacing="5.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                 <children>
+                                     <IntegerAdjuster fx:id="compressedSiblings_bytesForIndex" alignment="CENTER" prefHeight="26.0" prefWidth="95.0" />
+                                     <IntegerAdjuster fx:id="compressedSiblings_bytesForType" alignment="CENTER" prefHeight="26.0"
+                                                      prefWidth="95.0"/>
+                                     <IntegerAdjuster fx:id="compressedSiblings_bitsForData" alignment="CENTER" prefHeight="26.0" prefWidth="95.0" />
+                                 </children>
+                                 <padding>
+                                     <Insets top="5.0" />
+                                 </padding>
+                             </VBox>
+                         </children>
+                     </AnchorPane>
+                 </content>
+             </TitledPane>
+             <TitledPane animated="false" prefWidth="300.0" text="Disk Implementation">
+                 <content>
+                     <AnchorPane>
+                         <children>
+                             <VBox alignment="CENTER" prefHeight="52.0" prefWidth="262.0" spacing="5.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                 <children>
+                                     <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                     <children>
+                                         <Label text="Cache size:" />
+                                         <ChoiceBox fx:id="disk_cacheSize" prefHeight="26.0" prefWidth="95.0" />
+                                     </children>
+                                     </HBox>
+                                     <IntegerAdjuster fx:id="disk_cacheNumber" alignment="CENTER" prefHeight="26.0" prefWidth="95.0"/>
+                                 </children>
+                                 <padding>
+                                     <Insets top="5.0" />
+                                 </padding>
+                             </VBox>
+                         </children>
+                     </AnchorPane>
+                 </content>
+             </TitledPane>
          </children>
       </VBox>
    </content>
