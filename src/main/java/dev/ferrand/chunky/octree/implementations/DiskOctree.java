@@ -1,9 +1,6 @@
 package dev.ferrand.chunky.octree.implementations;
 
-import dev.ferrand.chunky.octree.utils.FileCache;
-import dev.ferrand.chunky.octree.utils.SingleThreadReadWriteCache;
-import dev.ferrand.chunky.octree.utils.SynchronizedWritableCache;
-import dev.ferrand.chunky.octree.utils.WritableFileCache;
+import dev.ferrand.chunky.octree.utils.*;
 import se.llbit.math.Octree;
 
 import java.io.*;
@@ -16,16 +13,11 @@ public class DiskOctree extends AbstractOctreeImplementation {
      * A reimplementation of the big packed octree but stored on disk
      * (caching will be implemented later)
      */
-    // TODO Implement caching
     private final File treeFile;
     private long size;
     private long freeHead;
-    private int depth;
+    private final int depth;
     private FileCache treeData;
-
-    private long createTime;
-    private long startFinalizationTime;
-    private long endFinalizationTime;
 
     private static final class NodeId implements Octree.NodeId {
         public long nodeIndex;
@@ -68,7 +60,6 @@ public class DiskOctree extends AbstractOctreeImplementation {
         setAt(0, 0);
         size = 1;
         freeHead = -1;
-        createTime = System.nanoTime();
     }
 
     private long getAt(long index) {
@@ -210,18 +201,20 @@ public class DiskOctree extends AbstractOctreeImplementation {
 
     @Override
     public void startFinalization() {
-        startFinalizationTime = System.nanoTime();
-        System.out.printf("Loading time: %dns\n", startFinalizationTime - createTime);
     }
 
     @Override
     public void endFinalization() {
         // There is a bunch of WHATEVER nodes we should try to merge
         finalizationNode(0);
-        endFinalizationTime = System.nanoTime();
-        System.out.printf("Finalization time: %dns\n", endFinalizationTime - startFinalizationTime);
-        System.out.printf("Total time: %dns\n", endFinalizationTime - createTime);
-        treeData = new SynchronizedWritableCache((WritableFileCache) treeData);
+        try {
+            if(treeData.isWritable()) {
+                ((WritableFileCache)treeData).flush();
+            }
+            treeData = new ThreadSafeReadCache(treeFile, 11, 4 << 9);
+        } catch(IOException e) {
+            throw new RuntimeException("Error while finalizing the octree", e);
+        }
     }
 
     private void finalizationNode(long nodeIndex) {

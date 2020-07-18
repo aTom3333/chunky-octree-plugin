@@ -22,4 +22,11 @@ public class SynchronizedWritableCache implements WritableFileCache {
             return wrapped.read(position);
         }
     }
+
+    @Override
+    public void flush() throws IOException {
+        synchronized(wrapped) {
+            wrapped.flush();
+        }
+    }
 }

@@ -9,4 +9,6 @@ public interface WritableFileCache extends FileCache {
     }
 
     void write(long position, long value) throws IOException;
+
+    void flush() throws IOException;
 }

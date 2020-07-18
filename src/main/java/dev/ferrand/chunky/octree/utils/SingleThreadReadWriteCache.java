@@ -212,4 +212,15 @@ public class SingleThreadReadWriteCache implements WritableFileCache {
         addBufferToCache(bufferIndex);
         return buffers.get(bufferIndex).data[indexInBuffer];
     }
+
+    @Override
+    public void flush() throws IOException {
+        for(int i = 0; i < buffers.size(); ++i) {
+            Buffer buffer = buffers.get(i);
+            if(buffer != null && buffer.dirty) {
+                saveBuffer(i);
+                buffer.dirty = false;
+            }
+        }
+    }
 }
