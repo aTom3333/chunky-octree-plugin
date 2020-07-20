@@ -213,6 +213,7 @@ public class DiskOctree extends AbstractOctreeImplementation {
             if(treeData.isWritable()) {
                 ((WritableFileCache)treeData).flush();
             }
+            treeData = null; // Allow garbage collection of the old caches
             treeData = new ThreadSafeReadCache(treeFile, cacheSize, cacheNumber);
         } catch(IOException e) {
             throw new RuntimeException("Error while finalizing the octree", e);
@@ -254,6 +255,7 @@ public class DiskOctree extends AbstractOctreeImplementation {
         if(tree.treeData.isWritable()) {
             ((WritableFileCache)tree.treeData).flush();
         }
+        tree.treeData = null; // Allow garbage collection of the old caches
         tree.treeData = new ThreadSafeReadCache(tree.treeFile, tree.cacheSize, tree.cacheNumber);
         return tree;
     }
