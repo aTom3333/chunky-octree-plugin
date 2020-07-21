@@ -28,6 +28,11 @@ public abstract class AbstractOctreeImplementation implements Octree.OctreeImple
     }
 
     @Override
+    public void set(int type, int x, int y, int z) {
+        set(new Octree.Node(type), x, y, z);
+    }
+
+    @Override
     public Octree.Node get(int x, int y, int z) {
         Octree.NodeId node = getHelper(x, y, z);
         return new Octree.DataNode(getType(node), getData(node));
@@ -44,7 +49,7 @@ public abstract class AbstractOctreeImplementation implements Octree.OctreeImple
         storeNode(out, getRoot());
     }
 
-    private void storeNode(DataOutputStream out, Octree.NodeId node) throws IOException {
+    protected void storeNode(DataOutputStream out, Octree.NodeId node) throws IOException {
         if(isBranch(node)) {
             out.writeInt(Octree.BRANCH_NODE);
             for(int i = 0; i < 8; ++i) {

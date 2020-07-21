@@ -145,11 +145,6 @@ public class DiskOctree extends AbstractOctreeImplementation {
     }
 
     @Override
-    public void set(int type, int x, int y, int z) {
-        set(new Octree.Node(type), x, y, z);
-    }
-
-    @Override
     public void set(Octree.Node data, int x, int y, int z) {
         long[] parents = new long[depth]; // better to put as a field to preventallocation at each invocation?
         long nodeIndex = 0;

@@ -2,6 +2,7 @@ package dev.ferrand.chunky.octree;
 
 import dev.ferrand.chunky.octree.implementations.CompressedSiblingsOctree;
 import dev.ferrand.chunky.octree.implementations.DiskOctree;
+import dev.ferrand.chunky.octree.implementations.ForestOctree;
 import dev.ferrand.chunky.octree.ui.OctreeTab;
 import se.llbit.chunky.Plugin;
 import se.llbit.chunky.main.Chunky;
@@ -18,6 +19,7 @@ public class OctreePlugin implements Plugin {
 
         CompressedSiblingsOctree.initImplementation();
         DiskOctree.initImplementation();
+        ForestOctree.initImplementation();
     }
 
     public static void main(String[] args) {

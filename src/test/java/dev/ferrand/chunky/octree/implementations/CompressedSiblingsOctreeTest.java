@@ -54,6 +54,5 @@ public class CompressedSiblingsOctreeTest {
             byte actualByte = data[i];
             assertEquals(expectedByte, actualByte);
         }
-
     }
 }
