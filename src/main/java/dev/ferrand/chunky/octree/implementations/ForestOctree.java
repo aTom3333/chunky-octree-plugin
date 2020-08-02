@@ -93,9 +93,7 @@ public class ForestOctree extends AbstractOctreeImplementation {
     public ForestOctree(int depth, int cutLevel) {
         this.depth = depth;
         this.cutLevel = cutLevel;
-        if(cutLevel > depth) {
-            throw new RuntimeException("Can't have a cut level bigger than the depth of the tree");
-        }
+        cutLevel = Math.min(cutLevel, depth);
         subtrees = new SubTree[1 << (3*cutLevel)];
         for(int i = 0; i < subtrees.length; ++i) {
             subtrees[i] = new Leaf(0, 0, depth);
@@ -103,7 +101,7 @@ public class ForestOctree extends AbstractOctreeImplementation {
     }
 
     public ForestOctree(int depth) {
-        this(depth, PersistentSettings.settings.getInt("forest.cutLevel", 4));
+        this(depth, PersistentSettings.settings.getInt("forest.cutLevel", 3));
     }
 
     private int subTreeIndex(int x, int y, int z) {
