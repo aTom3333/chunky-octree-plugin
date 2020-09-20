@@ -3,6 +3,6 @@
   "author": "a_Tom",
   "main": "dev.ferrand.chunky.octree.OctreePlugin",
   "version": "0.2.0",
-  "targetVersion": "2.2.0-337-g41d9c25f",
+  "targetVersion": "2.2.0-338-g4fa4d4cb",
   "description": "Add more octree implementations."
 }

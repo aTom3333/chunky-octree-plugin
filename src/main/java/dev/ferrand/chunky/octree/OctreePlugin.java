@@ -1,5 +1,6 @@
 package dev.ferrand.chunky.octree;
 
+import dev.ferrand.chunky.octree.implementations.ArrayOctreeImplementation;
 import dev.ferrand.chunky.octree.implementations.CompressedSiblingsOctree;
 import dev.ferrand.chunky.octree.implementations.DiskOctree;
 import dev.ferrand.chunky.octree.ui.OctreeTab;
@@ -18,6 +19,7 @@ public class OctreePlugin implements Plugin {
 
         CompressedSiblingsOctree.initImplementation();
         DiskOctree.initImplementation();
+        ArrayOctreeImplementation.initImplementation();
     }
 
     public static void main(String[] args) {
