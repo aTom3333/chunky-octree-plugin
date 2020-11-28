@@ -11,6 +11,9 @@ Beware, some of them cannot be used in some circumstances, read the following de
 ## Provided octree implementation
 
 ### Compressed Siblings Implementation
+Note: This implementation was developped prior to chunky 2.3.0. In chunky 2.3.0 the octree was changed
+to store half as much data, this implementation doesn't take advantage of this change and is as such mostly obsolete.
+
 Available under the name `COMPRESSED_SIBLINGS`, this implementation reduce memory usage over
 the Packed Implementation, but it comes with a number of caveats.
 
@@ -53,6 +56,7 @@ to be loaded as they will be stored on disk and only a fraction of bounded size 
 #### Comparison
 Advantages of this implementation:
  - Can handle scene of any size, regardless of how much RAM is available (as long as enough disk space is available)
+
 Drawbacks of this implementation:
  - Super slow. A large number of disk accesses need to be performed, even when trying to implement good caching. So
  this will be slow, especially if using magnetic disk.
@@ -71,5 +75,34 @@ but working with multiple threads.
  Also keep in mind that the octrees are not the only things taking up memory when loading a scene.
  For a big scene with a lot of entities, a substancial amount of memory will be used to store those (limiting 
  the effectiveness of this implementation on loading huge scene with low amount of memory).
+
+### Garbage-collected Implementation
+Available under the name `GC_PACKED`. This implementation is similar to the built-in `PACKED` implementation 
+with the difference that, instead of merging equal nodes after every insertion, merging is only done once in a while
+before the array containing the data needs to be expanded. This is where the name "garbage-collected" comes from, 
+like a garbage collector, we let the memory accumulate such as not wasting time when memory is abundant, but
+we take action to free memory when it becomes scarce.
+
+#### Comparison
+Very similar to `PACKED` octree. Once fully built, there is no difference, so performance for rendering are the same.
+The only differences are regarding loading the chunks.
+
+Advantages of this implementation:
+ - Speed up loading time most of the time
+ 
+Drawbacks of this implementation:
+ - Could in theory lead to higher peak memory usage if merging isn't done often enough (is if the threshold is too high).
+ Doesn't seem to be an issue in practice.
+ - Can lead to slower loading time with poorly chosen value of the threshold
+ 
+#### Implementation Specific Instructions
+This implementation can be used in the same way the `PACKED` implementation is used. It offers a parameter that can be
+ changed to achieve better performance. The parameter is the number of `Inserts before merge`. To prevent merging the tree every time 
+ a node is inserted, we only merge if the number of insertion since the last merge is greater that this threshold.
+ If the threshold is too low, a lot of time will be lost trying to merge the tree only to free a handful of bytes, if it is to
+ big, memory could be wasted and it may lead to slowdowns as well (due to more cache misses probably). The
+ optimal value is scene and hardware dependant. the default value is `10000`.
+ 
+
 
 [chunky]: https://chunky.llbit.se/
