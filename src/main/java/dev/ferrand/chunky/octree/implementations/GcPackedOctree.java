@@ -1,5 +1,6 @@
 package dev.ferrand.chunky.octree.implementations;
 
+import se.llbit.chunky.PersistentSettings;
 import se.llbit.chunky.block.UnknownBlock;
 import se.llbit.chunky.chunk.BlockPalette;
 import se.llbit.chunky.world.Material;
@@ -70,6 +71,8 @@ public class GcPackedOctree extends AbstractOctreeImplementation {
 
   private int insertSinceLastMerge = 0;
 
+  private final int insertBeforeMergeThreshold = PersistentSettings.settings.getInt("gcoctree.threshold", 10000);
+
   private static final class NodeId implements Octree.NodeId {
     int nodeIndex;
 
@@ -133,7 +136,7 @@ public class GcPackedOctree extends AbstractOctreeImplementation {
    */
   public GcPackedOctree(int depth) {
     this.depth = depth;
-    treeData = new int[64];
+    treeData = new int[1024];
     // Add a root node
     treeData[0] = 0;
     size = 1;
@@ -164,7 +167,7 @@ public class GcPackedOctree extends AbstractOctreeImplementation {
     }
 
     // Merge nodes to free space
-    if(insertSinceLastMerge > 10000) {
+    if(insertBeforeMergeThreshold != 0 && insertSinceLastMerge > insertBeforeMergeThreshold) {
       recursiveMerge(0);
       insertSinceLastMerge = 0;
       return -findSpace(); // Negate the index to convey the merge

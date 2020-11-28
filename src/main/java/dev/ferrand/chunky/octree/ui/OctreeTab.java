@@ -9,6 +9,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
 import se.llbit.chunky.PersistentSettings;
 import se.llbit.chunky.renderer.scene.Scene;
+import se.llbit.chunky.ui.DoubleAdjuster;
 import se.llbit.chunky.ui.IntegerAdjuster;
 import se.llbit.chunky.ui.render.RenderControlsTab;
 
@@ -58,6 +59,8 @@ public class OctreeTab extends ScrollPane implements RenderControlsTab, Initiali
     }
     @FXML private ChoiceBox<CacheSize> disk_cacheSize;
     @FXML private IntegerAdjuster disk_cacheNumber;
+
+    @FXML private DoubleAdjuster gcoctree_threshold;
 
     public OctreeTab() {
         try {
@@ -113,6 +116,16 @@ public class OctreeTab extends ScrollPane implements RenderControlsTab, Initiali
         disk_cacheNumber.setTooltip("The number of caches used to reduce the number of disk access");
         disk_cacheNumber.setAndUpdate(PersistentSettings.settings.getInt("disk.cacheNumber", 2048));
         disk_cacheNumber.onValueChange(val -> PersistentSettings.setIntOption("disk.cacheNumber", val));
+
+        gcoctree_threshold.setName("Inserts before merge");
+        gcoctree_threshold.setTooltip("Minimum number of insertions that have to be done before attempting to merge nodes. 0 means never merge");
+        gcoctree_threshold.setRange(0, 1_000_000_000);
+        gcoctree_threshold.makeLogarithmic();
+        gcoctree_threshold.setAndUpdate(PersistentSettings.settings.getInt("gcoctree.threshold", 10000));
+        gcoctree_threshold.onValueChange(val -> {
+            PersistentSettings.setIntOption("gcoctree.threshold", (int)(double)val);
+            gcoctree_threshold.set((int)(double)val);
+        });
     }
 
     @Override

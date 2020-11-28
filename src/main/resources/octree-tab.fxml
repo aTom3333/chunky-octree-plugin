@@ -7,6 +7,7 @@
 <?import se.llbit.chunky.ui.IntegerAdjuster?>
 <?import javafx.scene.control.ChoiceBox?>
 <?import javafx.scene.control.Label?>
+<?import se.llbit.chunky.ui.DoubleAdjuster?>
 <fx:root type="javafx.scene.control.ScrollPane" xmlns="http://javafx.com/javafx/10.0.1" xmlns:fx="http://javafx.com/fxml/1">
    <content>
       <VBox spacing="10.0">
@@ -46,6 +47,22 @@
                                      </children>
                                      </HBox>
                                      <IntegerAdjuster fx:id="disk_cacheNumber" alignment="CENTER" prefHeight="26.0" prefWidth="95.0"/>
+                                 </children>
+                                 <padding>
+                                     <Insets top="5.0" />
+                                 </padding>
+                             </VBox>
+                         </children>
+                     </AnchorPane>
+                 </content>
+             </TitledPane>
+             <TitledPane animated="false" prefWidth="300.0" text="GC Packed Implementation">
+                 <content>
+                     <AnchorPane>
+                         <children>
+                             <VBox alignment="CENTER" prefHeight="52.0" prefWidth="262.0" spacing="5.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                 <children>
+                                     <DoubleAdjuster fx:id="gcoctree_threshold" alignment="CENTER" prefHeight="26.0" prefWidth="95.0"/>
                                  </children>
                                  <padding>
                                      <Insets top="5.0" />
