@@ -69,10 +69,6 @@ public class PackedOctree extends AbstractOctreeImplementation {
 
   private int depth;
 
-  private int insertSinceLastMerge = 0;
-
-  private final int insertBeforeMergeThreshold = PersistentSettings.settings.getInt("gcoctree.threshold", 10000);
-
   private static final class NodeId implements Octree.NodeId {
     int nodeIndex;
 
