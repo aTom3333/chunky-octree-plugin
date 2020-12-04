@@ -386,6 +386,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
         int depth = in.readInt();
         StatsOctree tree = new StatsOctree(depth);
         tree.loadNode(in, 0);
+        tree.statisticsLoading();
         return tree;
     }
 
@@ -393,6 +394,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
         int depth = in.readInt();
         StatsOctree tree = new StatsOctree(depth, nodeCount);
         tree.loadNode(in, 0);
+        tree.statisticsLoading();
         return tree;
     }
 
@@ -485,7 +487,6 @@ public class StatsOctree extends AbstractOctreeImplementation {
     }
 
     private void statistics() {
-
         int totalNodesBuilding = totalNodes;
         totalNodes = 1;
         int branchNodeBuilding = branchNode;
@@ -519,15 +520,58 @@ public class StatsOctree extends AbstractOctreeImplementation {
         else
             System.out.println("Error: numbers does NOT respect the theoretical, leaves = 7*n+1, branches = n, for some n (being the number of split minus the number of merge)");
         show("maximum number of nodes during construction", maxNodesCount);
-        showSize("size needed to store the maximum number of nodes", 4 * maxNodesCount);
-        showSize("size of final allocation", treeData.length * 4);
+        showSize("size needed to store the maximum number of nodes", 4 * (long)maxNodesCount);
+        showSize("size of final allocation", (long)treeData.length * 4);
         show("number of (re)allocation during building", allocation);
-        showSize("size needed for final number of nodes", totalNodes * 4);
-        showSize("size wasted by over-allocation", treeData.length * 4 - 4 * maxNodesCount);
-        showSize("size wasted during construction", treeData.length * 4 - 4 * totalNodes);
+        showSize("size needed for final number of nodes", (long)totalNodes * 4);
+        showSize("size wasted by over-allocation", (long)treeData.length * 4 - 4 * (long)maxNodesCount);
+        showSize("size wasted during construction", (long)treeData.length * 4 - 4 * (long)totalNodes);
         show("depth of the octree", depth);
         show("number of leaf nodes living at the full depth", leafNodesAtFullDepth);
         show("maximum block type stored during building (excluding ANY)", maxTypeBuilding);
+        show("maximum block type stored (excluding ANY)", maxType);
+        if(maxType < 65535) {
+            System.out.println("the maximum block type fits into a 16 bits integer, leaf nodes at full depth could be made more compact");
+            System.out.printf("size saved by such optimization: %s (%.2f%% of size needed for total)\n", formatSize((long)leafNodesAtFullDepth * 2), (double) leafNodesAtFullDepth * 2 / (totalNodes * 4) * 100);
+        } else {
+            System.out.println("the maximum block type does NOT fit into a 16 bits integer, leaf nodes at full depth could not be made more compact");
+        }
+
+        System.out.println("Block type histogram (type: number of occurrence):");
+        for(int i = 0; i < typeHistogram.length; ++i) {
+            if(typeHistogram[i] > 0) {
+                System.out.printf("%d: %d\n", i, typeHistogram[i]);
+            }
+        }
+    }
+
+    private void statisticsLoading() {
+        totalNodes = 1;
+        branchNode = 1;
+        leafNodes = 0;
+        maxType = 0;
+
+        int[] typeHistogram = new int[100000];
+
+        computeStatForNode(0, 1, typeHistogram);
+
+        show("number of nodes", totalNodes);
+        show("number of branch nodes", branchNode);
+        show("number of leaf nodes", leafNodes);
+        if(branchNode + leafNodes == totalNodes)
+            System.out.println("total nodes is the sum of the number of branch and leaf nodes");
+        else
+            System.out.println("Error: total nodes is NOT the sum of the number of branch and leaf nodes");
+        if(7 * branchNode == leafNodes - 1)
+            System.out.println("numbers respect the theoretical, leaves = 7*n+1, branches = n, for some n (being the number of split minus the number of merge)");
+        else
+            System.out.println("Error: numbers does NOT respect the theoretical, leaves = 7*n+1, branches = n, for some n (being the number of split minus the number of merge)");
+        showSize("size of final allocation", (long)treeData.length * 4);
+        show("number of (re)allocation during building", allocation);
+        showSize("size needed for final number of nodes", (long)totalNodes * 4);
+        showSize("size wasted by over-allocation", (long)treeData.length * 4 - 4 * (long)totalNodes);
+        show("depth of the octree", depth);
+        show("number of leaf nodes living at the full depth", leafNodesAtFullDepth);
         show("maximum block type stored (excluding ANY)", maxType);
         if(maxType < 65535) {
             System.out.println("the maximum block type fits into a 16 bits integer, leaf nodes at full depth could be made more compact");

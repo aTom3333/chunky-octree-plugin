@@ -92,24 +92,23 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
 
   @Override
   public boolean isBranch(Octree.NodeId node) {
-    return ((NodeId)node).occupancy == NodeOccupancy.FULL && treeData[((NodeId) node).nodeIndex] > 0;
+    return ((NodeId) node).occupancy == NodeOccupancy.FULL && treeData[((NodeId) node).nodeIndex] > 0;
   }
 
   @Override
   public Octree.NodeId getChild(Octree.NodeId parent, int childNo) {
-    NodeId parentNodeId = (NodeId)parent;
+    NodeId parentNodeId = (NodeId) parent;
     if(parentNodeId.currentDepth == depth) {
-      return new NodeId(treeData[parentNodeId.nodeIndex] + (childNo >>> 1), (childNo & 1) == 0 ? NodeOccupancy.HIGH : NodeOccupancy.LOW, parentNodeId.currentDepth + 1 );
+      return new NodeId(treeData[parentNodeId.nodeIndex] + (childNo >>> 1), (childNo & 1) == 0 ? NodeOccupancy.HIGH : NodeOccupancy.LOW, parentNodeId.currentDepth + 1);
     }
-    return new NodeId(treeData[((NodeId) parent).nodeIndex] + childNo, NodeOccupancy.FULL, parentNodeId.currentDepth+1);
+    return new NodeId(treeData[((NodeId) parent).nodeIndex] + childNo, NodeOccupancy.FULL, parentNodeId.currentDepth + 1);
   }
 
   @Override
   public int getType(Octree.NodeId node) {
-    NodeId nodeId = (NodeId)node;
+    NodeId nodeId = (NodeId) node;
     int type = 0;
-    switch(nodeId.occupancy)
-    {
+    switch(nodeId.occupancy) {
       case HIGH:
         type = treeData[nodeId.nodeIndex] >>> 16;
         break;
@@ -160,7 +159,7 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
    */
   public SmallLeafOctree(int depth) {
     this.depth = depth;
-    treeData = new int[1024];
+    treeData = new int[64];
     // Add a root node
     treeData[0] = 0;
     size = 1;
@@ -213,6 +212,7 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
     size += 8;
     return index;
   }
+
   private int findSpace16() {
     // Look in free list
     if(freeHead16 != -1) {
@@ -260,6 +260,7 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
     treeData[index] = freeHead32;
     freeHead32 = index;
   }
+
   private void freeSpace16(int index) {
     treeData[index] = freeHead16;
     freeHead16 = index;
@@ -359,7 +360,7 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
         if(type == ANY_TYPE)
           type = SMALL_ANY_TYPE;
         treeData[nodeIndex] &= mask;
-        treeData[nodeIndex] |= (type << (16 * (1-zbit)));
+        treeData[nodeIndex] |= (type << (16 * (1 - zbit)));
       } else {
         position = (xbit << 2) | (ybit << 1) | zbit;
         nodeIndex = treeData[nodeIndex] + position;
@@ -423,67 +424,106 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
   public static SmallLeafOctree load(DataInputStream in) throws IOException {
     int depth = in.readInt();
     SmallLeafOctree tree = new SmallLeafOctree(depth);
-    tree.loadNode(in, 0);
+    tree.loadNode(in, 0, 1);
     return tree;
   }
 
   public static SmallLeafOctree loadWithNodeCount(long nodeCount, DataInputStream in) throws IOException {
     int depth = in.readInt();
     SmallLeafOctree tree = new SmallLeafOctree(depth, nodeCount);
-    tree.loadNode(in, 0);
+    tree.loadNode(in, 0, 1);
     return tree;
   }
 
-  private void loadNode(DataInputStream in, int nodeIndex) throws IOException {
-//    int type = in.readInt();
-//    if(type == BRANCH_NODE) {
-//      int childrenIndex = findSpace();
-//      treeData[nodeIndex] = childrenIndex;
-//      for(int i = 0; i < 8; ++i) {
-//        loadNode(in, childrenIndex + i);
-//      }
-//    } else {
-//      if((type & DATA_FLAG) == 0) {
-//        treeData[nodeIndex] = -type; // negation of type
-//      } else {
-//        int data = in.readInt();
-//        treeData[nodeIndex] = -(type ^ DATA_FLAG);
-//      }
-//    }
+  private void loadNode(DataInputStream in, int nodeIndex, int currentDepth) throws IOException {
+    int type = in.readInt();
+    if(type == BRANCH_NODE) {
+      if(currentDepth == depth) {
+        int childrenIndex = findSpace16();
+        treeData[nodeIndex] = childrenIndex;
+        for(int i = 0; i < 4; ++i) {
+          int high = in.readInt();
+          if(high == ANY_TYPE)
+            high = SMALL_ANY_TYPE;
+          int low = in.readInt();
+          if(low == ANY_TYPE)
+            low = SMALL_ANY_TYPE;
+          if(high > 65535 || high == BRANCH_NODE || low > 65535 || low == BRANCH_NODE) {
+            throw new RuntimeException("Can't load octree into a SmallLeafOctree. Use another octree implementation");
+          }
+          treeData[childrenIndex + i] = (high << 16) | low;
+        }
+      } else {
+        int childrenIndex = findSpace32();
+        treeData[nodeIndex] = childrenIndex;
+        for(int i = 0; i < 8; ++i) {
+          loadNode(in, childrenIndex + i, currentDepth + 1);
+        }
+      }
+    } else {
+      if((type & DATA_FLAG) == 0) {
+        treeData[nodeIndex] = -type; // negation of type
+      } else {
+        int data = in.readInt();
+        treeData[nodeIndex] = -(type ^ DATA_FLAG);
+      }
+    }
   }
 
   @Override
   public void endFinalization() {
     // There is a bunch of ANY_TYPE nodes we should try to merge
-    finalizationNode(0);
-
-    Pair<Octree.NodeId, Integer> thingy = getWithLevel(208, 141, 15);
-    int type = getType(thingy.getFirst());
+    finalizationNode(0, 1);
   }
 
-  private void finalizationNode(int nodeIndex) {
-//    boolean canMerge = true;
-//    int mergedType = -ANY_TYPE;
-//    for(int i = 0; i < 8; ++i) {
-//      int childIndex = treeData[nodeIndex] + i;
-//      if(treeData[childIndex] > 0) {
-//        finalizationNode(childIndex);
-//        // The node may have been merged, retest if it still a branch node
-//        if(treeData[childIndex] > 0) {
-//          canMerge = false;
-//        }
-//      }
-//      if(canMerge) {
-//        if(mergedType == -ANY_TYPE) {
-//          mergedType = treeData[childIndex];
-//        } else if(!(treeData[childIndex] == -ANY_TYPE || (treeData[childIndex] == mergedType))) {
-//          canMerge = false;
-//        }
-//      }
-//    }
-//    if(canMerge) {
-//      mergeNode(nodeIndex, mergedType);
-//    }
+  private void finalizationNode(int nodeIndex, int currentDepth) {
+    if(currentDepth == depth) {
+      boolean canMerge = true;
+      int mergedType = SMALL_ANY_TYPE;
+      for(int i = 0; i < 4; ++i) {
+        int childIndex = treeData[nodeIndex] + i;
+        if(mergedType == SMALL_ANY_TYPE) {
+          mergedType = treeData[childIndex] >>> 16;
+        } else if(!((treeData[childIndex] >>> 16) != SMALL_ANY_TYPE || ((treeData[childIndex] >>> 16) == mergedType))) {
+          canMerge = false;
+        }
+        if(canMerge) {
+          if(mergedType == SMALL_ANY_TYPE) {
+            mergedType = treeData[childIndex] & 0xFFFF;
+          } else if(!((treeData[childIndex] & 0xFFFF) != SMALL_ANY_TYPE || ((treeData[childIndex] & 0xFFFF) == mergedType))) {
+            canMerge = false;
+          }
+        }
+      }
+      if(canMerge) {
+        if(mergedType == SMALL_ANY_TYPE)
+          mergedType = ANY_TYPE;
+        mergeNode(nodeIndex, -mergedType, currentDepth);
+      }
+    } else {
+      boolean canMerge = true;
+      int mergedType = -ANY_TYPE;
+      for(int i = 0; i < 8; ++i) {
+        int childIndex = treeData[nodeIndex] + i;
+        if(treeData[childIndex] > 0) {
+          finalizationNode(childIndex, currentDepth + 1);
+          // The node may have been merged, retest if it still a branch node
+          if(treeData[childIndex] > 0) {
+            canMerge = false;
+          }
+        }
+        if(canMerge) {
+          if(mergedType == -ANY_TYPE) {
+            mergedType = treeData[childIndex];
+          } else if(!(treeData[childIndex] == -ANY_TYPE || (treeData[childIndex] == mergedType))) {
+            canMerge = false;
+          }
+        }
+      }
+      if(canMerge) {
+        mergeNode(nodeIndex, mergedType, currentDepth);
+      }
+    }
   }
 
   static public void initImplementation() {
