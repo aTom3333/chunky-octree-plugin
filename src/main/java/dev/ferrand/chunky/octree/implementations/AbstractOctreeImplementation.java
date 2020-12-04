@@ -30,7 +30,7 @@ public abstract class AbstractOctreeImplementation implements Octree.OctreeImple
     @Override
     public Octree.Node get(int x, int y, int z) {
         Octree.NodeId node = getHelper(x, y, z);
-        return new Octree.DataNode(getType(node), getData(node));
+        return new Octree.Node(getType(node));
     }
 
     @Override
