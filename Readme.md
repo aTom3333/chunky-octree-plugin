@@ -102,7 +102,25 @@ This implementation can be used in the same way the `PACKED` implementation is u
  If the threshold is too low, a lot of time will be lost trying to merge the tree only to free a handful of bytes, if it is to
  big, memory could be wasted and it may lead to slowdowns as well (due to more cache misses probably). The
  optimal value is scene and hardware dependant. the default value is `10000`.
+
+### Small-leaf Implementation
+Available under the name `SMALL_LEAF`, this implementation is similar to the `PACKED`
+implementation but use a more compact representation for the leaves that are located at full depth.
+As the depth of the tree is fixed and known, if we keep in memory the current depth while walking down
+the tree, when we arrive at the last level (the one at full depth), we know the nodes are
+leaves without having to read them. This means that we can use a compact representation for
+those nodes that would not be suitable for branch nodes as they are never branch nodes.
+
+#### Comparison
+Advantages of this implementation:
+ - Memory usage lower than `PACKED` implementation. A 16 bits integer is used to represent
+ the leaves at full depth instead of a 32 bits integer. According to some measurements, leaves at
+ full depth represent 2/3rd of the nodes, leading to an expected memory saving of around 33% (1/2 for 2/3rd of nodes).
+ In practice measurements tends to agree to this around 33% memory saving.
  
+Drawbacks of this implementation:
+ - Maybe slower. A bit of bitwise arithmetic is needed to work with the leaves at full
+ depth which in theory slow down a bit. In practice, no significant slow down has been measured.
 
 
 [chunky]: https://chunky.llbit.se/
