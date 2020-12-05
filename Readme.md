@@ -119,8 +119,8 @@ Advantages of this implementation:
  In practice measurements tends to agree to this around 33% memory saving.
  
 Drawbacks of this implementation:
- - Maybe slower. A bit of bitwise arithmetic is needed to work with the leaves at full
- depth which in theory slow down a bit. In practice, no significant slow down has been measured.
+ - Slower than `PACKED` octree. The use of a bit of bitwise arithmetic is needed to work with the leaves at full
+ depth. According to some measurement, this incurs a slowdown of about 15%.
 
 
 [chunky]: https://chunky.llbit.se/

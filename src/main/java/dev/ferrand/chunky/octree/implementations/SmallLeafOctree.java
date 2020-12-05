@@ -482,17 +482,18 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
       int mergedType = SMALL_ANY_TYPE;
       for(int i = 0; i < 4; ++i) {
         int childIndex = treeData[nodeIndex] + i;
+        int combinedType = treeData[childIndex];
         if(mergedType == SMALL_ANY_TYPE) {
-          mergedType = treeData[childIndex] >>> 16;
-        } else if(!((treeData[childIndex] >>> 16) != SMALL_ANY_TYPE || ((treeData[childIndex] >>> 16) == mergedType))) {
+          mergedType = combinedType >>> 16;
+        } else if(!((combinedType >>> 16) == SMALL_ANY_TYPE || ((combinedType >>> 16) == mergedType))) {
           canMerge = false;
+          break;
         }
-        if(canMerge) {
-          if(mergedType == SMALL_ANY_TYPE) {
-            mergedType = treeData[childIndex] & 0xFFFF;
-          } else if(!((treeData[childIndex] & 0xFFFF) != SMALL_ANY_TYPE || ((treeData[childIndex] & 0xFFFF) == mergedType))) {
-            canMerge = false;
-          }
+        if(mergedType == SMALL_ANY_TYPE) {
+          mergedType = combinedType & 0xFFFF;
+        } else if(!((combinedType & 0xFFFF) == SMALL_ANY_TYPE || ((combinedType & 0xFFFF) == mergedType))) {
+          canMerge = false;
+          break;
         }
       }
       if(canMerge) {
