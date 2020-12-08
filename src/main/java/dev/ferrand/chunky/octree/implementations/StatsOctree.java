@@ -8,6 +8,9 @@ import se.llbit.math.Octree;
 
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Objects;
 
 import static se.llbit.math.Octree.*;
 
@@ -323,6 +326,24 @@ public class StatsOctree extends AbstractOctreeImplementation {
         int finalNodeIndex = treeData[parents[0]] + position;
         treeData[finalNodeIndex] = -data.type; // Store negation of the type
 
+        int childrenIndex = treeData[parents[0]];
+        FullDepthSiblings siblings = new FullDepthSiblings(
+                treeData[childrenIndex + 0],
+                treeData[childrenIndex + 1],
+                treeData[childrenIndex + 2],
+                treeData[childrenIndex + 3],
+                treeData[childrenIndex + 4],
+                treeData[childrenIndex + 5],
+                treeData[childrenIndex + 6],
+                treeData[childrenIndex + 7]
+        );
+        if(!siblingsToIndex.containsKey(siblings)) {
+            siblingsToIndex.put(siblings, fullDepthSiblingsDictionary.size());
+            for(int i = 0; i < 8; i++) {
+                fullDepthSiblingsDictionary.add(treeData[childrenIndex+i]);
+            }
+        }
+
         // Merge nodes where all children have been set to the same type.
         for(int i = 0; i <= parentLevel; ++i) {
             int parentIndex = parents[i];
@@ -465,7 +486,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
                 "B", "kB", "MB", "GB", "TB"
         };
         int idx = 0;
-        while(idx < suffix.length && finalSize > 10000) {
+        while(idx < suffix.length && (finalSize > 10000 || finalSize < -10000)) {
             idx++;
             finalSize /= 1000;
         }
@@ -486,7 +507,49 @@ public class StatsOctree extends AbstractOctreeImplementation {
         }
     }
 
+    private class FullDepthSiblings {
+        public int child0, child1, child2, child3, child4, child5, child6, child7;
+
+        public FullDepthSiblings(int child0, int child1, int child2, int child3, int child4, int child5, int child6, int child7) {
+            this.child0 = child0;
+            this.child1 = child1;
+            this.child2 = child2;
+            this.child3 = child3;
+            this.child4 = child4;
+            this.child5 = child5;
+            this.child6 = child6;
+            this.child7 = child7;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if(this == o) return true;
+            if(o == null || getClass() != o.getClass()) return false;
+            FullDepthSiblings that = (FullDepthSiblings) o;
+            return child0 == that.child0 &&
+                    child1 == that.child1 &&
+                    child2 == that.child2 &&
+                    child3 == that.child3 &&
+                    child4 == that.child4 &&
+                    child5 == that.child5 &&
+                    child6 == that.child6 &&
+                    child7 == that.child7;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(child0, child1, child2, child3, child4, child5, child6, child7);
+        }
+    }
+
+    private ArrayList<Integer> fullDepthSiblingsDictionary = new ArrayList<>();
+    private HashMap<FullDepthSiblings, Integer> siblingsToIndex = new HashMap<>();
+
     private void statistics() {
+        long sizeDictionaryBuilding = fullDepthSiblingsDictionary.size();
+        fullDepthSiblingsDictionary = new ArrayList<>();
+        siblingsToIndex = new HashMap<>();
+
         int totalNodesBuilding = totalNodes;
         totalNodes = 1;
         int branchNodeBuilding = branchNode;
@@ -495,6 +558,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
         leafNodes = 0;
         int maxTypeBuilding = maxType;
         maxType = 0;
+
 
         int[] typeHistogram = new int[maxTypeBuilding + 1];
 
@@ -537,6 +601,20 @@ public class StatsOctree extends AbstractOctreeImplementation {
             System.out.println("the maximum block type does NOT fit into a 16 bits integer, leaf nodes at full depth could not be made more compact");
         }
 
+        show("number of unique 2x2x2 group during building", sizeDictionaryBuilding / 8);
+        show("number of unique 2x2x2 group", fullDepthSiblingsDictionary.size() / 8);
+        showSize("size used by the group dictionary (if using 32 bits, during building)", sizeDictionaryBuilding*4);
+        showSize("size used by the group dictionary (if using 32 bits, after building)", (long)fullDepthSiblingsDictionary.size()*4);
+        showSize("size used by the group dictionary (if using 16 bits, during building)", sizeDictionaryBuilding*2);
+        showSize("size used by the group dictionary (if using 16 bits, after building)", (long)fullDepthSiblingsDictionary.size()*2);
+        showSize("memory saved by using a dictionary (if leaf were stored by 32 bits)", (long)leafNodesAtFullDepth * 4);
+        showSize("memory saved by using a dictionary (if leaf were stored by 16 bits)", (long)leafNodesAtFullDepth * 2);
+        showSize("memory difference if using a dictionary (with 32 bits types, with dictionary created during building)", sizeDictionaryBuilding*4 - (long)leafNodesAtFullDepth * 4);
+        showSize("memory difference if using a dictionary (with 32 bits types, with dictionary created after building)", (long)fullDepthSiblingsDictionary.size()*4 - (long)leafNodesAtFullDepth * 4);
+        showSize("memory difference if using a dictionary (with 16 bits types, with dictionary created during building)", sizeDictionaryBuilding*2 - (long)leafNodesAtFullDepth * 2);
+        showSize("memory difference if using a dictionary (with 16 bits types, with dictionary created after building)", (long)fullDepthSiblingsDictionary.size()*2 - (long)leafNodesAtFullDepth * 2);
+
+
         System.out.println("Block type histogram (type: number of occurrence):");
         for(int i = 0; i < typeHistogram.length; ++i) {
             if(typeHistogram[i] > 0) {
@@ -546,6 +624,8 @@ public class StatsOctree extends AbstractOctreeImplementation {
     }
 
     private void statisticsLoading() {
+        fullDepthSiblingsDictionary = new ArrayList<>();
+        siblingsToIndex = new HashMap<>();
         totalNodes = 1;
         branchNode = 1;
         leafNodes = 0;
@@ -580,6 +660,15 @@ public class StatsOctree extends AbstractOctreeImplementation {
             System.out.println("the maximum block type does NOT fit into a 16 bits integer, leaf nodes at full depth could not be made more compact");
         }
 
+        show("number of unique 2x2x2 group", fullDepthSiblingsDictionary.size() / 8);
+        showSize("size used by the group dictionary (if using 32 bits)", (long)fullDepthSiblingsDictionary.size()*4);
+        showSize("size used by the group dictionary (if using 16 bits)", (long)fullDepthSiblingsDictionary.size()*2);
+        showSize("memory saved by using a dictionary (if leaf were stored by 32 bits)", (long)leafNodesAtFullDepth / 8 * 7 * 4);
+        showSize("memory saved by using a dictionary (if leaf were stored by 16 bits)", (long)leafNodesAtFullDepth / 4 * 3 * 4);
+        showSize("memory difference if using a dictionary (with 32 bits types)", (long)fullDepthSiblingsDictionary.size()*4 - (long)leafNodesAtFullDepth / 8 * 7 * 4);
+        showSize("memory difference if using a dictionary (with 16 bits types)", (long)fullDepthSiblingsDictionary.size()*2 - (long)leafNodesAtFullDepth / 4 * 3 * 4);
+
+
         System.out.println("Block type histogram (type: number of occurrence):");
         for(int i = 0; i < typeHistogram.length; ++i) {
             if(typeHistogram[i] > 0) {
@@ -590,8 +679,26 @@ public class StatsOctree extends AbstractOctreeImplementation {
 
     private void computeStatForNode(int nodeIndex, int currentDepth, int[] typeHistogram) {
         totalNodes += 8;
-        if(currentDepth >= depth)
+        if(currentDepth >= depth) {
             leafNodesAtFullDepth += 8;
+            int childrenIndex = treeData[nodeIndex];
+            FullDepthSiblings siblings = new FullDepthSiblings(
+                    treeData[childrenIndex + 0],
+                    treeData[childrenIndex + 1],
+                    treeData[childrenIndex + 2],
+                    treeData[childrenIndex + 3],
+                    treeData[childrenIndex + 4],
+                    treeData[childrenIndex + 5],
+                    treeData[childrenIndex + 6],
+                    treeData[childrenIndex + 7]
+            );
+            if(!siblingsToIndex.containsKey(siblings)) {
+                siblingsToIndex.put(siblings, fullDepthSiblingsDictionary.size());
+                for(int i = 0; i < 8; i++) {
+                    fullDepthSiblingsDictionary.add(treeData[childrenIndex+i]);
+                }
+            }
+        }
         for(int i = 0; i < 8; ++i) {
             int childIndex = treeData[nodeIndex] + i;
             if(treeData[childIndex] > 0) {
