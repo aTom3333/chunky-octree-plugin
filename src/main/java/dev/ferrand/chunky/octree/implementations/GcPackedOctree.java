@@ -1,5 +1,6 @@
 package dev.ferrand.chunky.octree.implementations;
 
+import org.apache.commons.math3.util.Pair;
 import se.llbit.chunky.PersistentSettings;
 import se.llbit.chunky.block.UnknownBlock;
 import se.llbit.chunky.chunk.BlockPalette;
@@ -7,6 +8,7 @@ import se.llbit.chunky.world.Material;
 import se.llbit.math.Octree;
 
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 
 import static se.llbit.math.Octree.*;
@@ -16,7 +18,7 @@ import static se.llbit.math.Octree.*;
  * the whole octree is stored in a int array to reduce memory usage and
  * hopefully improve performance by being more cache-friendly
  */
-public class GcPackedOctree extends AbstractOctreeImplementation {
+public class GcPackedOctree implements OctreeImplementation {
   /**
    * The whole tree data is store in a int array
    * <p>
@@ -311,10 +313,24 @@ public class GcPackedOctree extends AbstractOctreeImplementation {
   }
 
   @Override
+  public Pair<Octree.NodeId, Integer> getWithLevel(int x, int y, int z) {
+    int nodeIndex = 0;
+    int level = depth;
+    while(treeData[nodeIndex] > 0) {
+      level -= 1;
+      int lx = x >>> level;
+      int ly = y >>> level;
+      int lz = z >>> level;
+      nodeIndex = treeData[nodeIndex] + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
+    }
+    return new Pair<>(new NodeId(nodeIndex), level);
+  }
+
+  @Override
   public Node get(int x, int y, int z) {
     int nodeIndex = getNodeIndex(x, y, z);
 
-    Node node = new Node(treeData[nodeIndex] > 0 ? BRANCH_NODE : -treeData[nodeIndex]);
+    Node node = new Node(-treeData[nodeIndex]);
 
     // Return dummy Node, will work if only type and data are used, breaks if children are needed
     return node;
@@ -324,10 +340,46 @@ public class GcPackedOctree extends AbstractOctreeImplementation {
   public Material getMaterial(int x, int y, int z, BlockPalette palette) {
     // Building the dummy node is useless here
     int nodeIndex = getNodeIndex(x, y, z);
-    if(treeData[nodeIndex] > 0) {
-      return UnknownBlock.UNKNOWN;
-    }
     return palette.get(-treeData[nodeIndex]);
+  }
+
+  @Override
+  public void store(DataOutputStream out) throws IOException {
+    out.writeInt(getDepth());
+    storeNode(out, getRoot());
+  }
+
+  private void storeNode(DataOutputStream out, Octree.NodeId node) throws IOException {
+    if(isBranch(node)) {
+      out.writeInt(Octree.BRANCH_NODE);
+      for(int i = 0; i < 8; ++i) {
+        storeNode(out, getChild(node, i));
+      }
+    } else {
+      int type = getType(node);
+      int data = getData(node);
+      if(data != 0) {
+        out.writeInt(type | Octree.DATA_FLAG);
+        out.writeInt(data);
+      } else {
+        out.writeInt(type);
+      }
+    }
+  }
+
+  @Override
+  public long nodeCount() {
+    return countNodes(getRoot());
+  }
+
+  private long countNodes(Octree.NodeId node) {
+    long total = 1;
+    if(isBranch(node)) {
+      for(int i = 0; i < 8; ++i) {
+        total += countNodes(getChild(node, i));
+      }
+    }
+    return total;
   }
 
   @Override
