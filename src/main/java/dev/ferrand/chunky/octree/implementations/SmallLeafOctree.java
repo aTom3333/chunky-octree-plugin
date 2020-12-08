@@ -1,9 +1,12 @@
 package dev.ferrand.chunky.octree.implementations;
 
 import org.apache.commons.math3.util.Pair;
+import se.llbit.chunky.chunk.BlockPalette;
+import se.llbit.chunky.world.Material;
 import se.llbit.math.Octree;
 
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 
 import static se.llbit.math.Octree.*;
@@ -13,7 +16,7 @@ import static se.llbit.math.Octree.*;
  * the whole octree is stored in a int array to reduce memory usage and
  * hopefully improve performance by being more cache-friendly
  */
-public class SmallLeafOctree extends AbstractOctreeImplementation {
+public class SmallLeafOctree implements OctreeImplementation {
   /**
    * The whole tree data is store in a int array
    * <p>
@@ -70,7 +73,7 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
   private static int SMALL_ANY_TYPE = 0xFFFF;
 
   public enum NodeOccupancy {
-    FULL, LOW, HIGH
+    FULL, LOW, HIGH, CACHED
   }
 
   private static final class NodeId implements Octree.NodeId {
@@ -82,6 +85,10 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
       this.nodeIndex = nodeIndex;
       this.occupancy = occupancy;
       this.currentDepth = currentDepth;
+    }
+
+    public static NodeId cachedType(int type) {
+      return new NodeId(type, NodeOccupancy.CACHED, -1);
     }
   }
 
@@ -117,6 +124,8 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
         break;
       case FULL:
         return -treeData[nodeId.nodeIndex];
+      case CACHED:
+        return nodeId.nodeIndex;
     }
     if(type == SMALL_ANY_TYPE)
       return ANY_TYPE;
@@ -414,6 +423,113 @@ public class SmallLeafOctree extends AbstractOctreeImplementation {
 
       --currentDepth;
     }
+  }
+
+  private int getType(int x, int y, int z) {
+    int level = depth;
+    int nodeIndex = 0;
+    int nodeValue = treeData[nodeIndex];
+    while(nodeValue > 0 && level != 1) {
+      level -= 1;
+      int lx = x >>> level;
+      int ly = y >>> level;
+      int lz = z >>> level;
+      nodeIndex = nodeValue + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
+      nodeValue = treeData[nodeIndex];
+    }
+    if(nodeValue <= 0)
+      return -nodeValue;
+
+    int xbit = x & 1;
+    int ybit = y & 1;
+    int zbit = z & 1;
+    int mask = -zbit; //0b111111... if zbit == 1, 0b0000000... if zbit == 0
+    int childIndex = nodeValue + ((xbit << 1) | ybit);
+    int combinedType = treeData[childIndex];
+    // Is branchless code really a good idea?
+    int type = ((combinedType >>> 16) & ~mask) | ((combinedType & 0xFFFF) & mask);
+    if(type == SMALL_ANY_TYPE)
+      return ANY_TYPE;
+    return type;
+  }
+
+  @Override
+  public Pair<Octree.NodeId, Integer> getWithLevel(int x, int y, int z) {
+    int level = depth;
+    int nodeIndex = 0;
+    int nodeValue = treeData[nodeIndex];
+    while(nodeValue > 0 && level != 1) {
+      level -= 1;
+      int lx = x >>> level;
+      int ly = y >>> level;
+      int lz = z >>> level;
+      nodeIndex = nodeValue + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
+      nodeValue = treeData[nodeIndex];
+    }
+    if(nodeValue <= 0)
+      return new Pair<>(NodeId.cachedType(-nodeValue), level);
+
+    int xbit = x & 1;
+    int ybit = y & 1;
+    int zbit = z & 1;
+    int mask = -zbit; //0b111111... if zbit == 1, 0b0000000... if zbit == 0
+    int childIndex = nodeValue + ((xbit << 1) | ybit);
+    int combinedType = treeData[childIndex];
+    // Is branchless code really a good idea?
+    int type = ((combinedType >>> 16) & ~mask) | ((combinedType & 0xFFFF) & mask);
+    if(type == SMALL_ANY_TYPE)
+      return new Pair<>(NodeId.cachedType(ANY_TYPE), 0);
+    return new Pair<>(NodeId.cachedType(type), 0);
+  }
+
+  @Override
+  public Octree.Node get(int x, int y, int z) {
+    return new Octree.Node(getType(x, y, z));
+  }
+
+  @Override
+  public Material getMaterial(int x, int y, int z, BlockPalette palette) {
+    int type = getType(x, y, z);
+    return palette.get(type);
+  }
+
+  @Override
+  public void store(DataOutputStream out) throws IOException {
+    out.writeInt(getDepth());
+    storeNode(out, getRoot());
+  }
+
+  private void storeNode(DataOutputStream out, Octree.NodeId node) throws IOException {
+    if(isBranch(node)) {
+      out.writeInt(Octree.BRANCH_NODE);
+      for(int i = 0; i < 8; ++i) {
+        storeNode(out, getChild(node, i));
+      }
+    } else {
+      int type = getType(node);
+      int data = getData(node);
+      if(data != 0) {
+        out.writeInt(type | Octree.DATA_FLAG);
+        out.writeInt(data);
+      } else {
+        out.writeInt(type);
+      }
+    }
+  }
+
+  @Override
+  public long nodeCount() {
+    return countNodes(getRoot());
+  }
+
+  private long countNodes(Octree.NodeId node) {
+    long total = 1;
+    if(isBranch(node)) {
+      for(int i = 0; i < 8; ++i) {
+        total += countNodes(getChild(node, i));
+      }
+    }
+    return total;
   }
 
   @Override
