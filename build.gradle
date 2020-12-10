@@ -12,7 +12,7 @@ apply plugin: 'application'
 mainClassName = 'dev.ferrand.chunky.octree.OctreePlugin'
 
 group 'dev.ferrand'
-version '0.4.2'
+version '0.5.0'
 
 compileJava {
     sourceCompatibility = JavaVersion.VERSION_1_8
