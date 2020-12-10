@@ -20,6 +20,7 @@ public class OctreePlugin implements Plugin {
         GcPackedOctree.initImplementation();
         StatsOctree.initImplementation();
         SmallLeafOctree.initImplementation();
+        DictionaryOctree.initImplementation();
     }
 
     public static void main(String[] args) {
