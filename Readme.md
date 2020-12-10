@@ -122,5 +122,23 @@ Drawbacks of this implementation:
  - Slower than `PACKED` octree. The use of a bit of bitwise arithmetic is needed to work with the leaves at full
  depth. According to some measurement, this incurs a slowdown of about 15%.
 
+### Dictionary Implementation
+Available under the name `DICTIONARY` builds up on the idea of the Small-leaf implementation
+by treating nodes that are at full depth differently than the others.
+A dictionary of all combination of 2\*2\*2 blocks present in octree is kept and, in 
+the octree, those groups of 2\*2\*2 blocks are referenced when they appear.
+This means that a group of 8 blocks takes up only 4 bytes in the octree.
+In the dictionary, each 2\*2\*2 groups takes up 16 bytes but each group usually appears
+several time (while only being stored once) so in the end, this gives a great memory usage reduction.
+
+#### Comparison
+Advantages of this implementation:
+ - Lower memory usage than `PACKED` or `SMALL_LEAF`. (No precise number for now)
+ 
+Drawbacks of this implementation:
+ - Maybe slower than `PACKED` octree during rendering. There is some additional `if`s
+ that could slow a bit down but the difference is not that big.
+ - Slower than `PACKED` octree during loading. During loading there is more work needed
+ so it loads slower.
 
 [chunky]: https://chunky.llbit.se/
