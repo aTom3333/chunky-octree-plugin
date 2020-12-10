@@ -1,8 +1,12 @@
 package dev.ferrand.chunky.octree.implementations;
 
+import org.apache.commons.math3.util.Pair;
+import se.llbit.chunky.chunk.BlockPalette;
+import se.llbit.chunky.world.Material;
 import se.llbit.math.Octree;
 
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -10,7 +14,7 @@ import java.util.Objects;
 
 import static se.llbit.math.Octree.*;
 
-public class DictionaryOctree extends AbstractOctreeImplementation {
+public class DictionaryOctree implements OctreeImplementation {
   private int[] treeData;
 
   private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 16;
@@ -361,38 +365,61 @@ public class DictionaryOctree extends AbstractOctreeImplementation {
     }
   }
 
-//  private int getNodeIndex(int x, int y, int z) {
-//    int nodeIndex = 0;
-//    int level = depth;
-//    while(treeData[nodeIndex] > 0) {
-//      level -= 1;
-//      int lx = x >>> level;
-//      int ly = y >>> level;
-//      int lz = z >>> level;
-//      nodeIndex = treeData[nodeIndex] + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
-//    }
-//    return nodeIndex;
-//  }
-//
-//  @Override
-//  public Node get(int x, int y, int z) {
-//    int nodeIndex = getNodeIndex(x, y, z);
-//
-//    Node node = new Node(treeData[nodeIndex] > 0 ? BRANCH_NODE : -treeData[nodeIndex]);
-//
-//    // Return dummy Node, will work if only type and data are used, breaks if children are needed
-//    return node;
-//  }
-//
-//  @Override
-//  public Material getMaterial(int x, int y, int z, BlockPalette palette) {
-//    // Building the dummy node is useless here
-//    int nodeIndex = getNodeIndex(x, y, z);
-//    if(treeData[nodeIndex] > 0) {
-//      return UnknownBlock.UNKNOWN;
-//    }
-//    return palette.get(-treeData[nodeIndex]);
-//  }
+  private int getType(int x, int y, int z) {
+    int level = depth;
+    int nodeIndex = 0;
+    int nodeValue = treeData[nodeIndex];
+    while(nodeValue > 0 && level != 1) {
+      level -= 1;
+      int lx = x >>> level;
+      int ly = y >>> level;
+      int lz = z >>> level;
+      nodeIndex = nodeValue + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
+      nodeValue = treeData[nodeIndex];
+    }
+    if(nodeValue <= 0)
+      return -nodeValue;
+
+    int xbit = x & 1;
+    int ybit = y & 1;
+    int zbit = z & 1;
+    int childIndex = nodeValue + ((xbit << 2) | (ybit << 1) | zbit);
+    return smallToBig(dict[childIndex]);
+  }
+
+  @Override
+  public Pair<Octree.NodeId, Integer> getWithLevel(int x, int y, int z) {
+    int level = depth;
+    int nodeIndex = 0;
+    int nodeValue = treeData[nodeIndex];
+    while(nodeValue > 0 && level != 1) {
+      level -= 1;
+      int lx = x >>> level;
+      int ly = y >>> level;
+      int lz = z >>> level;
+      nodeIndex = nodeValue + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
+      nodeValue = treeData[nodeIndex];
+    }
+    if(nodeValue <= 0)
+      return new Pair<>(new NodeId(nodeIndex, depth-level), level);
+
+    int xbit = x & 1;
+    int ybit = y & 1;
+    int zbit = z & 1;
+    int childIndex = nodeValue + ((xbit << 2) | (ybit << 1) | zbit);
+    return new Pair<>(new NodeId(childIndex, depth), 0);
+  }
+
+  @Override
+  public Octree.Node get(int x, int y, int z) {
+    return new Octree.Node(getType(x, y, z));
+  }
+
+  @Override
+  public Material getMaterial(int x, int y, int z, BlockPalette palette) {
+    int type = getType(x, y, z);
+    return palette.get(type);
+  }
 
   @Override
   public int getDepth() {
@@ -402,24 +429,41 @@ public class DictionaryOctree extends AbstractOctreeImplementation {
   public static DictionaryOctree load(DataInputStream in) throws IOException {
     int depth = in.readInt();
     DictionaryOctree tree = new DictionaryOctree(depth);
-    tree.loadNode(in, 0);
+    tree.loadNode(in, 0, 1);
+    tree.indexForGroup = null;
     return tree;
   }
 
   public static DictionaryOctree loadWithNodeCount(long nodeCount, DataInputStream in) throws IOException {
     int depth = in.readInt();
     DictionaryOctree tree = new DictionaryOctree(depth, nodeCount);
-    tree.loadNode(in, 0);
+    tree.loadNode(in, 0, 1);
+    tree.indexForGroup = null;
     return tree;
   }
 
-  private void loadNode(DataInputStream in, int nodeIndex) throws IOException {
+  private void loadNode(DataInputStream in, int nodeIndex, int currentDepth) throws IOException {
     int type = in.readInt();
     if(type == BRANCH_NODE) {
-      int childrenIndex = findSpace();
-      treeData[nodeIndex] = childrenIndex;
-      for(int i = 0; i < 8; ++i) {
-        loadNode(in, childrenIndex + i);
+      if(currentDepth == depth) {
+        Group group = new Group(
+                bigToSmall(in.readInt()),
+                bigToSmall(in.readInt()),
+                bigToSmall(in.readInt()),
+                bigToSmall(in.readInt()),
+                bigToSmall(in.readInt()),
+                bigToSmall(in.readInt()),
+                bigToSmall(in.readInt()),
+                bigToSmall(in.readInt())
+        );
+        int childrenIndex = findGroup(group);
+        treeData[nodeIndex] = childrenIndex;
+      } else {
+        int childrenIndex = findSpace();
+        treeData[nodeIndex] = childrenIndex;
+        for(int i = 0; i < 8; ++i) {
+          loadNode(in, childrenIndex + i, currentDepth + 1);
+        }
       }
     } else {
       if((type & DATA_FLAG) == 0) {
@@ -446,9 +490,9 @@ public class DictionaryOctree extends AbstractOctreeImplementation {
       for(int i = 0; i < 8; ++i) {
         int childIndex = treeData[nodeIndex] + i;
         if(canMerge) {
-          if(mergedType == SMALL_ANY_TYPE) {
+          if(mergedType == (short)SMALL_ANY_TYPE) {
             mergedType = dict[childIndex];
-          } else if(!(dict[childIndex] == SMALL_ANY_TYPE || (dict[childIndex] == mergedType))) {
+          } else if(!(dict[childIndex] == (short)SMALL_ANY_TYPE || (dict[childIndex] == mergedType))) {
             canMerge = false;
           }
         }
@@ -480,6 +524,45 @@ public class DictionaryOctree extends AbstractOctreeImplementation {
         mergeNode(nodeIndex, mergedType);
       }
     }
+  }
+
+  @Override
+  public void store(DataOutputStream out) throws IOException {
+    out.writeInt(getDepth());
+    storeNode(out, getRoot());
+  }
+
+  private void storeNode(DataOutputStream out, Octree.NodeId node) throws IOException {
+    if(isBranch(node)) {
+      out.writeInt(Octree.BRANCH_NODE);
+      for(int i = 0; i < 8; ++i) {
+        storeNode(out, getChild(node, i));
+      }
+    } else {
+      int type = getType(node);
+      int data = getData(node);
+      if(data != 0) {
+        out.writeInt(type | Octree.DATA_FLAG);
+        out.writeInt(data);
+      } else {
+        out.writeInt(type);
+      }
+    }
+  }
+
+  @Override
+  public long nodeCount() {
+    return countNodes(getRoot());
+  }
+
+  private long countNodes(Octree.NodeId node) {
+    long total = 1;
+    if(isBranch(node)) {
+      for(int i = 0; i < 8; ++i) {
+        total += countNodes(getChild(node, i));
+      }
+    }
+    return total;
   }
 
   static public void initImplementation() {
