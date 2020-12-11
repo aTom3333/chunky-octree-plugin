@@ -8,6 +8,7 @@ import se.llbit.math.Octree;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -74,7 +75,10 @@ public class DictionaryOctree implements OctreeImplementation {
     }
   }
 
-  private Map<Group, Integer> indexForGroup = new HashMap<>();
+  //private Map<Group, Integer> indexForGroup = new HashMap<>();
+
+  private int[] hashMapData;
+  private int hashMapSize;
 
   private static final class NodeId implements Octree.NodeId {
     int nodeIndex;
@@ -87,7 +91,7 @@ public class DictionaryOctree implements OctreeImplementation {
   }
 
   private static int smallToBig(short smallType) {
-    int type = ((int)smallType) & 0xFFFF;
+    int type = ((int) smallType) & 0xFFFF;
     if(type == SMALL_ANY_TYPE)
       type = ANY_TYPE;
     return type;
@@ -107,23 +111,22 @@ public class DictionaryOctree implements OctreeImplementation {
 
   @Override
   public boolean isBranch(Octree.NodeId node) {
-    NodeId n = (NodeId)node;
+    NodeId n = (NodeId) node;
     return n.currentDepth < depth && treeData[n.nodeIndex] > 0;
   }
 
   @Override
   public Octree.NodeId getChild(Octree.NodeId parent, int childNo) {
-    NodeId p = (NodeId)parent;
-    return new NodeId(treeData[p.nodeIndex] + childNo, p.currentDepth+1);
+    NodeId p = (NodeId) parent;
+    return new NodeId(treeData[p.nodeIndex] + childNo, p.currentDepth + 1);
   }
 
   @Override
   public int getType(Octree.NodeId node) {
-    NodeId n = (NodeId)node;
+    NodeId n = (NodeId) node;
     if(n.currentDepth == depth) {
       return smallToBig(dict[n.nodeIndex]);
-    }
-    else
+    } else
       return -treeData[n.nodeIndex];
   }
 
@@ -146,6 +149,7 @@ public class DictionaryOctree implements OctreeImplementation {
     freeHead = -1; // No holes
     dict = new short[64];
     dictSize = 0;
+    initHashMap();
   }
 
   public DictionaryOctree(int depth) {
@@ -157,6 +161,14 @@ public class DictionaryOctree implements OctreeImplementation {
     freeHead = -1;
     dict = new short[64];
     dictSize = 0;
+    initHashMap();
+  }
+
+  private void initHashMap() {
+    hashMapData = new int[64];
+    for(int i = 0; i < hashMapData.length; ++i)
+      hashMapData[i] = -1; // -1 means empty bucket
+    hashMapSize = 0;
   }
 
   private int findSpace() {
@@ -243,8 +255,8 @@ public class DictionaryOctree implements OctreeImplementation {
 
   private void subdivideNodeIntoDict(int nodeIndex) {
     int type = -treeData[nodeIndex];
-    Group group = Group.fromSingleType(bigToSmall(type));
-    int childrenIndexDict = findGroup(group);
+    short t = bigToSmall(type);
+    int childrenIndexDict = findGroup(t, t, t, t, t, t, t, t);
     treeData[nodeIndex] = childrenIndexDict; // Make the node a parent node pointing to its children
   }
 
@@ -264,19 +276,97 @@ public class DictionaryOctree implements OctreeImplementation {
     return ((firstIsBranch && secondIsBranch) || -treeData[firstNodeIndex] == secondNode.type); // compare types (don't forget that in the tree the negation of the type is stored)
   }
 
-  private int findGroup(Group group) {
-    Integer index = indexForGroup.get(group);
-    if(index == null) {
+  private int hashMapHashGroup(short type0, short type1, short type2, short type3, short type4, short type5, short type6, short type7) {
+    // Simplest hash ever?
+    int hash = 7;
+    hash = ((hash << 5) - hash) * type0;
+    hash = ((hash << 5) - hash) * type1;
+    hash = ((hash << 5) - hash) * type2;
+    hash = ((hash << 5) - hash) * type3;
+    hash = ((hash << 5) - hash) * type4;
+    hash = ((hash << 5) - hash) * type5;
+    hash = ((hash << 5) - hash) * type6;
+    hash = ((hash << 5) - hash) * type7;
+    hash %= hashMapData.length;
+    hash += hashMapData.length;
+    hash %= hashMapData.length;
+    return hash;
+  }
+
+  private int hashMapGetIndexForGroup(short type0, short type1, short type2, short type3, short type4, short type5, short type6, short type7) {
+    int indexInHashMap = hashMapHashGroup(type0, type1, type2, type3, type4, type5, type6, type7);
+    while(true) {
+      // Hash map using open addressing with the simplest method ever, if a bucket is taken, try the next
+      int groupIndex = hashMapData[indexInHashMap];
+      if(groupIndex == -1)
+        return -1; // Not found
+      if(type0 == dict[groupIndex]
+        && type1 == dict[groupIndex + 1]
+        && type2 == dict[groupIndex + 2]
+        && type3 == dict[groupIndex + 3]
+        && type4 == dict[groupIndex + 4]
+        && type5 == dict[groupIndex + 5]
+        && type6 == dict[groupIndex + 6]
+        && type7 == dict[groupIndex + 7]
+      ) {
+        return groupIndex;
+      } else {
+        indexInHashMap = (indexInHashMap + 1) % hashMapData.length;
+      }
+    }
+  }
+
+  private void hashMapInsertIndexForGroupWithoutCheckingCapacity(short type0, short type1, short type2, short type3, short type4, short type5, short type6, short type7, int dictIndex) {
+    int indexInHashMap = hashMapHashGroup(type0, type1, type2, type3, type4, type5, type6, type7);
+    while(true) {
+      if(hashMapData[indexInHashMap] == -1) {
+        hashMapData[indexInHashMap] = dictIndex;
+        return;
+      }
+      indexInHashMap = (indexInHashMap+1) % hashMapData.length;
+    }
+  }
+
+  private void hashMapPutIndexForGroup(short type0, short type1, short type2, short type3, short type4, short type5, short type6, short type7, int dictIndex) {
+    if(hashMapSize > hashMapData.length * 0.75) {
+      // Allocate more and rehash everything
+      int newHashMapCapacity = (int) (hashMapData.length * 1.5);
+      hashMapData = new int[newHashMapCapacity]; // No need to keep the old one around while rehashing because every element is already in dict
+      // Every bucket is empty
+      Arrays.fill(hashMapData, -1);
+      for(int i = 0; i < dictSize; i+=8) {
+        hashMapInsertIndexForGroupWithoutCheckingCapacity(
+                dict[i],
+                dict[i+1],
+                dict[i+2],
+                dict[i+3],
+                dict[i+4],
+                dict[i+5],
+                dict[i+6],
+                dict[i+7],
+                i
+        );
+      }
+      // No need to add the one passed in parameter as it has already been added to dict
+    } else {
+      hashMapInsertIndexForGroupWithoutCheckingCapacity(type0, type1, type2, type3, type4, type5, type6, type7, dictIndex);
+    }
+    ++hashMapSize;
+  }
+
+  private int findGroup(short type0, short type1, short type2, short type3, short type4, short type5, short type6, short type7) {
+    int index = hashMapGetIndexForGroup(type0, type1, type2, type3, type4, type5, type6, type7);
+    if(index == -1) {
       int dictIndex = findSpaceDict();
-      dict[dictIndex] = group.type0;
-      dict[dictIndex+1] = group.type1;
-      dict[dictIndex+2] = group.type2;
-      dict[dictIndex+3] = group.type3;
-      dict[dictIndex+4] = group.type4;
-      dict[dictIndex+5] = group.type5;
-      dict[dictIndex+6] = group.type6;
-      dict[dictIndex+7] = group.type7;
-      indexForGroup.put(group, dictIndex);
+      dict[dictIndex] = type0;
+      dict[dictIndex + 1] = type1;
+      dict[dictIndex + 2] = type2;
+      dict[dictIndex + 3] = type3;
+      dict[dictIndex + 4] = type4;
+      dict[dictIndex + 5] = type5;
+      dict[dictIndex + 6] = type6;
+      dict[dictIndex + 7] = type7;
+      hashMapPutIndexForGroup(type0, type1, type2, type3, type4, type5, type6, type7, dictIndex);
       return dictIndex;
     }
     return index;
@@ -300,7 +390,7 @@ public class DictionaryOctree implements OctreeImplementation {
         return;
       } else if(treeData[nodeIndex] <= 0) { // It's a leaf node
         if(i == 0) {
-        subdivideNodeIntoDict(nodeIndex);
+          subdivideNodeIntoDict(nodeIndex);
         } else {
           subdivideNode(nodeIndex);
         }
@@ -316,9 +406,18 @@ public class DictionaryOctree implements OctreeImplementation {
     short shortType = bigToSmall(data.type);
     short[] previousGroup = new short[8];
     for(int i = 0; i < 8; ++i)
-      previousGroup[i] = dict[groupIndex+i];
+      previousGroup[i] = dict[groupIndex + i];
     previousGroup[position] = shortType;
-    int newGroupIndex = findGroup(Group.fromArray(previousGroup));
+    int newGroupIndex = findGroup(
+            previousGroup[0],
+            previousGroup[1],
+            previousGroup[2],
+            previousGroup[3],
+            previousGroup[4],
+            previousGroup[5],
+            previousGroup[6],
+            previousGroup[7]
+    );
     treeData[parents[0]] = newGroupIndex;
 
     // Merge nodes where all children have been set to the same type.
@@ -401,7 +500,7 @@ public class DictionaryOctree implements OctreeImplementation {
       nodeValue = treeData[nodeIndex];
     }
     if(nodeValue <= 0)
-      return new Pair<>(new NodeId(nodeIndex, depth-level), level);
+      return new Pair<>(new NodeId(nodeIndex, depth - level), level);
 
     int xbit = x & 1;
     int ybit = y & 1;
@@ -430,7 +529,7 @@ public class DictionaryOctree implements OctreeImplementation {
     int depth = in.readInt();
     DictionaryOctree tree = new DictionaryOctree(depth);
     tree.loadNode(in, 0, 1);
-    tree.indexForGroup = null;
+    tree.hashMapData = null;
     return tree;
   }
 
@@ -438,7 +537,7 @@ public class DictionaryOctree implements OctreeImplementation {
     int depth = in.readInt();
     DictionaryOctree tree = new DictionaryOctree(depth, nodeCount);
     tree.loadNode(in, 0, 1);
-    tree.indexForGroup = null;
+    tree.hashMapData = null;
     return tree;
   }
 
@@ -446,7 +545,7 @@ public class DictionaryOctree implements OctreeImplementation {
     int type = in.readInt();
     if(type == BRANCH_NODE) {
       if(currentDepth == depth) {
-        Group group = new Group(
+        int childrenIndex = findGroup(
                 bigToSmall(in.readInt()),
                 bigToSmall(in.readInt()),
                 bigToSmall(in.readInt()),
@@ -456,7 +555,6 @@ public class DictionaryOctree implements OctreeImplementation {
                 bigToSmall(in.readInt()),
                 bigToSmall(in.readInt())
         );
-        int childrenIndex = findGroup(group);
         treeData[nodeIndex] = childrenIndex;
       } else {
         int childrenIndex = findSpace();
@@ -480,19 +578,19 @@ public class DictionaryOctree implements OctreeImplementation {
     // There is a bunch of ANY_TYPE nodes we should try to merge
     finalizationNode(0, 1);
     // The hashmap is no longer needed here
-    indexForGroup = null;
+    hashMapData = null;
   }
 
   private void finalizationNode(int nodeIndex, int currentDepth) {
     if(currentDepth == depth) {
       boolean canMerge = true;
-      short mergedType = (short)SMALL_ANY_TYPE;
+      short mergedType = (short) SMALL_ANY_TYPE;
       for(int i = 0; i < 8; ++i) {
         int childIndex = treeData[nodeIndex] + i;
         if(canMerge) {
-          if(mergedType == (short)SMALL_ANY_TYPE) {
+          if(mergedType == (short) SMALL_ANY_TYPE) {
             mergedType = dict[childIndex];
-          } else if(!(dict[childIndex] == (short)SMALL_ANY_TYPE || (dict[childIndex] == mergedType))) {
+          } else if(!(dict[childIndex] == (short) SMALL_ANY_TYPE || (dict[childIndex] == mergedType))) {
             canMerge = false;
           }
         }
