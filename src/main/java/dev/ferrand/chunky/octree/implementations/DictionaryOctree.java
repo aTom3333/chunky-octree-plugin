@@ -279,14 +279,14 @@ public class DictionaryOctree implements OctreeImplementation {
   private int hashMapHashGroup(short type0, short type1, short type2, short type3, short type4, short type5, short type6, short type7) {
     // Simplest hash ever?
     int hash = 7;
-    hash = ((hash << 5) - hash) * type0;
-    hash = ((hash << 5) - hash) * type1;
-    hash = ((hash << 5) - hash) * type2;
-    hash = ((hash << 5) - hash) * type3;
-    hash = ((hash << 5) - hash) * type4;
-    hash = ((hash << 5) - hash) * type5;
-    hash = ((hash << 5) - hash) * type6;
-    hash = ((hash << 5) - hash) * type7;
+    hash = ((hash << 5) - hash) + type0;
+    hash = ((hash << 5) - hash) + type1;
+    hash = ((hash << 5) - hash) + type2;
+    hash = ((hash << 5) - hash) + type3;
+    hash = ((hash << 5) - hash) + type4;
+    hash = ((hash << 5) - hash) + type5;
+    hash = ((hash << 5) - hash) + type6;
+    hash = ((hash << 5) - hash) + type7;
     hash %= hashMapData.length;
     hash += hashMapData.length;
     hash %= hashMapData.length;
