@@ -6,11 +6,14 @@ import se.llbit.chunky.Plugin;
 import se.llbit.chunky.main.Chunky;
 import se.llbit.chunky.main.ChunkyOptions;
 import se.llbit.chunky.ui.ChunkyFx;
+import se.llbit.chunky.ui.render.RenderControlsTabTransformer;
 
 public class OctreePlugin implements Plugin {
     @Override
     public void attach(Chunky chunky) {
+        RenderControlsTabTransformer previousTransformer = chunky.getRenderControlsTabTransformer();
         chunky.setRenderControlsTabTransformer(tabs -> {
+            tabs = previousTransformer.apply(tabs);
             tabs.add(new OctreeTab());
             return tabs;
         });
