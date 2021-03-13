@@ -49,6 +49,11 @@ public class SmallDAG {
   private short[] countMap;
   private int hashMapSize;
 
+  /**
+   * The hashes are cached because computing the hash every time is expensive
+   */
+  private short[] cachedHashes;
+
   private final double loadFactor = 0.75;
 
   private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 16;
@@ -77,10 +82,13 @@ public class SmallDAG {
     treeData[0] = 1;
     size = 16;
     freeHead = -1;
+    cachedHashes = new short[8]; // 1 8th of treeData
+    Arrays.fill(cachedHashes, (short) -1);
     initHashMap(64);
-    int childrenHash = hashSubTree((short) 1) % indexMap.length;
-    indexMap[childrenHash] = 1;
-    countMap[childrenHash] = 1;
+    short childrenHash = hashSubTree((short) 1);
+    int childrenHashMapIndex = childrenHash % indexMap.length;
+    indexMap[childrenHashMapIndex] = 1;
+    countMap[childrenHashMapIndex] = 1;
     hashMapSize = 1;
   }
 
@@ -116,11 +124,20 @@ public class SmallDAG {
       }
     }
     short[] newArray = new short[(int) newSize];
+    int newShortSize = (int) (newSize / 8);
+    short[] newCachedHashes = new short[newShortSize];
     System.arraycopy(treeData, 0, newArray, 0, size);
+
+    // grow the cachedHashes array at the same time
+    System.arraycopy(cachedHashes, 0, newCachedHashes, 0, size / 8);
+    // Fill the end with empty values
+    Arrays.fill(newCachedHashes, size / 8, newShortSize, (short) -1);
     treeData = newArray;
+    cachedHashes = newCachedHashes;
     // and then append
     short index = (short) (size >>> 3);
     size += 8;
+
     return index;
   }
 
@@ -128,6 +145,7 @@ public class SmallDAG {
     int longIndex = index << 3;
     treeData[longIndex] = freeHead;
     freeHead = index;
+    cachedHashes[index] = -1;
   }
 
   private void initHashMap(int size) {
@@ -138,9 +156,19 @@ public class SmallDAG {
     hashMapSize = 0;
   }
 
+  private void writeAt(short[] siblings, short index) {
+    int longIndex = index << 3;
+    System.arraycopy(siblings, 0, treeData, longIndex, 8);
+    cachedHashes[index] = -1;
+  }
+
   private short hashSubTree(short index) {
     //detectCycle();
-    return hashSubTree(index, 0);
+//    short hash1 = hashSubTree(index, 0);
+    short hash2 = hashSubTreeCached(index, 0);
+//    if(hash1 != hash2)
+//      throw new RuntimeException("bad hash");
+    return hash2;
   }
 
   private short hashSubTree(short index, int counter) {
@@ -155,7 +183,28 @@ public class SmallDAG {
       short value = treeData[childIndex];
       hash = (short) (((hash << 5) - hash) + hashNode(value, counter));
     }
-    return (short) (hash & 0x7FFF);
+    hash = (short) (hash & 0x7FFF);
+    return hash;
+  }
+
+  private short hashSubTreeCached(short index, int counter) {
+    short cachedHash = cachedHashes[index];
+    if(cachedHash >= 0)
+      return cachedHash;
+    short hash = 7;
+    if(counter > 8) {
+      // Something's wrong, I can feel it
+      throw new RuntimeException("cycle?");
+    }
+    int nodeIndex = index << 3;
+    for(int i = 0; i < 8; ++i) {
+      int childIndex = nodeIndex + i;
+      short value = treeData[childIndex];
+      hash = (short) (((hash << 5) - hash) + hashNodeCached(value, counter));
+    }
+    hash = (short) (hash & 0x7FFF);
+    cachedHashes[index] = hash;
+    return hash;
   }
 
   private short hashNode(short value, int counter) {
@@ -169,12 +218,23 @@ public class SmallDAG {
     return (short) (hash & 0x7FFF);
   }
 
+  private short hashNodeCached(short value, int counter) {
+    short hash = 13;
+    if(value <= 0) {
+      hash = (short) (((hash << 5) - hash) + (short)(-value));
+    } else {
+      hash = (short) (((hash << 5) - hash) + (short)(-1));
+      hash = (short) (((hash << 5) - hash) + hashSubTreeCached(value, counter+1));
+    }
+    return (short) (hash & 0x7FFF);
+  }
+
   private short hashSubTree(short[] siblings) {
     //detectCycle();
     short hash = 7;
     for(int i = 0; i < 8; ++i) {
       short value = siblings[i];
-      hash = (short) (((hash << 5) - hash) + hashNode(value, 1));
+      hash = (short) (((hash << 5) - hash) + hashNodeCached(value, 1));
     }
     return (short) (hash & 0x7FFF);
   }
@@ -361,15 +421,13 @@ public class SmallDAG {
     }
     if(canBeInplace /*&& !alreadyExists*/) {
       // reinsert the hash map entry (the node doesn't need to be reallocated)
-      int longIndex = index << 3;
-      System.arraycopy(siblings, 0, treeData, longIndex, 8);
+      writeAt(siblings, index);
       return insertInHashMap(modifiedHash, index, (short) 1);
     }
     /* if(!canBeInplace && !alreadyExists) */
     // Allocate a new node and hash map element
     short newIndex = findSpace();
-    int longNewIndex = newIndex << 3;
-    System.arraycopy(siblings, 0, treeData, longNewIndex, 8);
+    writeAt(siblings, newIndex);
     return insertInHashMap(modifiedHash, newIndex, (short)1);
   }
 
@@ -381,12 +439,13 @@ public class SmallDAG {
     }
 
     short index = findSpace();
-    int longIndex = index << 3;
-    System.arraycopy(siblings, 0, treeData, longIndex, 8);
+    writeAt(siblings, index);
     return insertInHashMap(hash, index, (short)1);
   }
 
   public void set(int type, int x, int y, int z) {
+//    System.err.printf("t.set(%d, %d, %d, %d);\n", type, x, y, z);
+//    System.err.flush();
 //    detectCycle();
     short encodedType = (short)-bigToSmall(type);
 
@@ -405,7 +464,7 @@ public class SmallDAG {
         return;
       } else if(treeData[nodeIndex] <= 0) {
         // subdivide node
-        for(int i = level+1; i <= DEPTH; ++i) {
+        for(int i = DEPTH; i >= level+1; --i) {
 //          detectCycle();
           short index = treeData[parents[i]];
           short hash = hashSubTree(index);
@@ -415,6 +474,7 @@ public class SmallDAG {
           canChangeInPlace[i] = countMap[hashMapIndex] == 1;
 
           releaseHashMapElement(index, hash);
+          cachedHashes[i] = -1;
         }
 //        detectCycle();
 
@@ -470,8 +530,8 @@ public class SmallDAG {
 
     ++level;
 
-    for(int i = level+1; i <= DEPTH; ++i) {
-//      detectCycle();
+    for(int i = DEPTH; i >= level+1; --i) {
+//          detectCycle();
       short index = treeData[parents[i]];
       short hash = hashSubTree(index);
       int hashMapIndex = findSubTreeInHashMap(index, hash);
@@ -480,6 +540,7 @@ public class SmallDAG {
       canChangeInPlace[i] = countMap[hashMapIndex] == 1;
 
       releaseHashMapElement(index, hash);
+      cachedHashes[i] = -1;
     }
 //    detectCycle();
     short siblingsToEditIndex = treeData[parents[level]];
@@ -675,27 +736,6 @@ public class SmallDAG {
     t.set(3, 6, 0, 0);
     t.set(3, 7, 0, 0);
     t.set(3, 8, 0, 0);
-    t.set(3, 9, 0, 0);
-    t.set(3, 10, 0, 0);
-    t.set(3, 11, 0, 0);
-    t.set(3, 12, 0, 0);
-    t.set(3, 13, 0, 0);
-    t.set(3, 14, 0, 0);
-    t.set(3, 15, 0, 0);
-    t.set(3, 0, 0, 1);
-    t.set(3, 1, 0, 1);
-    t.set(3, 2, 0, 1);
-    t.set(3, 3, 0, 1);
-    t.set(3, 4, 0, 1);
-    t.set(3, 5, 0, 1);
-    t.set(3, 6, 0, 1);
-    t.set(3, 7, 0, 1);
-    t.set(3, 8, 0, 1);
-    t.set(3, 9, 0, 1);
-    t.set(3, 10, 0, 1);
-    t.set(3, 11, 0, 1);
-    t.set(3, 12, 0, 1);
-    t.set(3, 13, 0, 1);
     System.out.println("yo");
   }
 
