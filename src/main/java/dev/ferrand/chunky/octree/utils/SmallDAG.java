@@ -140,10 +140,11 @@ public class SmallDAG {
 
   private short hashSubTree(short index) {
     //detectCycle();
-    return hashSubTree(index, (short) 7, 0);
+    return hashSubTree(index, 0);
   }
 
-  private short hashSubTree(short index, short hash, int counter) {
+  private short hashSubTree(short index, int counter) {
+    short hash = 7;
     if(counter > 8) {
       // Something's wrong, I can feel it
       throw new RuntimeException("cycle?");
@@ -152,17 +153,18 @@ public class SmallDAG {
     for(int i = 0; i < 8; ++i) {
       int childIndex = nodeIndex + i;
       short value = treeData[childIndex];
-      hash = hashNode(hash, value, counter);
+      hash = (short) (((hash << 5) - hash) + hashNode(value, counter));
     }
     return (short) (hash & 0x7FFF);
   }
 
-  private short hashNode(short hash, short value, int counter) {
+  private short hashNode(short value, int counter) {
+    short hash = 13;
     if(value <= 0) {
       hash = (short) (((hash << 5) - hash) + (short)(-value));
     } else {
       hash = (short) (((hash << 5) - hash) + (short)(-1));
-      hash = hashSubTree(value, hash, counter+1);
+      hash = (short) (((hash << 5) - hash) + hashSubTree(value, counter+1));
     }
     return (short) (hash & 0x7FFF);
   }
@@ -172,7 +174,7 @@ public class SmallDAG {
     short hash = 7;
     for(int i = 0; i < 8; ++i) {
       short value = siblings[i];
-      hash = hashNode(hash, value, 1);
+      hash = (short) (((hash << 5) - hash) + hashNode(value, 1));
     }
     return (short) (hash & 0x7FFF);
   }
@@ -291,7 +293,6 @@ public class SmallDAG {
         ++hashMapSize;
         return hashMapIndex;
       }
-
       hashMapIndex = (hashMapIndex+1) % indexMap.length;
     }
   }
