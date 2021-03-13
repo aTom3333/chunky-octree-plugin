@@ -24,6 +24,7 @@ public class OctreePlugin implements Plugin {
         StatsOctree.initImplementation();
         SmallLeafOctree.initImplementation();
         DictionaryOctree.initImplementation();
+        SmallDAGTree.initImplementation();
     }
 
     public static void main(String[] args) {
