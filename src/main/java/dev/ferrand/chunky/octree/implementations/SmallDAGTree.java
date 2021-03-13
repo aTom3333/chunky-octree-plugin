@@ -18,7 +18,7 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
     this.depth = depth;
   }
 
-  class NodeId implements SmallDAG.IExternalSmallDAGBasedNodeId {
+  static class NodeId implements SmallDAG.IExternalSmallDAGBasedNodeId {
     int level;
 
     public NodeId(int level) {
@@ -28,7 +28,7 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
 
   @Override
   public void set(int type, int x, int y, int z) {
-    if(x / 64 == 0 && y / 64 == 0 && z / 64 == 0)
+    if(x / 16 == 0 && y / 16 == 0 && z / 16 == 0)
       chunk.set(type, x, y, z);
   }
 
@@ -39,7 +39,7 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
 
   @Override
   public Octree.Node get(int x, int y, int z) {
-    if(x / 64 == 0 && y / 64 == 0 && z / 64 == 0)
+    if(x / 16 == 0 && y / 16 == 0 && z / 16 == 0)
       return new Octree.Node(chunk.get(x, y, z));
     return new Octree.Node(0);
   }
@@ -66,7 +66,7 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
 
   @Override
   public Octree.NodeId getRoot() {
-    return new NodeId(depth - 6);
+    return new NodeId(depth - 7);
   }
 
   @Override

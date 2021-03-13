@@ -138,12 +138,12 @@ public class SmallDAG {
     hashMapSize = 0;
   }
 
-  private int hashSubTree(short index) {
+  private short hashSubTree(short index) {
     //detectCycle();
-    return hashSubTree(index, 7, 0);
+    return hashSubTree(index, (short) 7, 0);
   }
 
-  private int hashSubTree(short index, int hash, int counter) {
+  private short hashSubTree(short index, short hash, int counter) {
     if(counter > 8) {
       // Something's wrong, I can feel it
       throw new RuntimeException("cycle?");
@@ -154,27 +154,27 @@ public class SmallDAG {
       short value = treeData[childIndex];
       hash = hashNode(hash, value, counter);
     }
-    return hash & 0x7FFFFFFF;
+    return (short) (hash & 0x7FFF);
   }
 
-  private int hashNode(int hash, short value, int counter) {
+  private short hashNode(short hash, short value, int counter) {
     if(value <= 0) {
-      hash = ((hash << 5) - hash) + (short)(-value);
+      hash = (short) (((hash << 5) - hash) + (short)(-value));
     } else {
-      hash = ((hash << 5) - hash) + (short)(-1);
+      hash = (short) (((hash << 5) - hash) + (short)(-1));
       hash = hashSubTree(value, hash, counter+1);
     }
-    return hash & 0x7FFFFFFF;
+    return (short) (hash & 0x7FFF);
   }
 
-  private int hashSubTree(short[] siblings) {
+  private short hashSubTree(short[] siblings) {
     //detectCycle();
-    int hash = 7;
+    short hash = 7;
     for(int i = 0; i < 8; ++i) {
       short value = siblings[i];
       hash = hashNode(hash, value, 1);
     }
-    return hash & 0x7FFFFFFF;
+    return (short) (hash & 0x7FFF);
   }
 
   private boolean areSubTreeEquals(short index1, short index2) {
@@ -223,7 +223,7 @@ public class SmallDAG {
     return true;
   }
 
-  private int findSubTreeInHashMap(short index, int hash) {
+  private int findSubTreeInHashMap(short index, short hash) {
     int hashMapIndex = hash % indexMap.length;
 
     while(true) {
@@ -238,7 +238,7 @@ public class SmallDAG {
     }
   }
 
-  private int findSubTreeInHashMap(short[] siblings, int hash) {
+  private int findSubTreeInHashMap(short[] siblings, short hash) {
     int hashMapIndex = hash % indexMap.length;
 
     while(true) {
@@ -264,7 +264,7 @@ public class SmallDAG {
       if(indexMap[i] == (short)-1)
         continue; // Skip empty buckets
 
-      int hash = hashSubTree(indexMap[i]);
+      short hash = hashSubTree(indexMap[i]);
       int indexInMap = hash % newHashMapCapacity;
       while(newIndexMap[indexInMap] != (short)-1)
         indexInMap = (indexInMap+1) % newHashMapCapacity;
@@ -277,7 +277,7 @@ public class SmallDAG {
     countMap = newCountMap;
   }
 
-  private int insertInHashMap(int hash, short index, short count) {
+  private int insertInHashMap(short hash, short index, short count) {
     if(hashMapSize > indexMap.length * loadFactor)
       growHashMap();
 
@@ -322,7 +322,7 @@ public class SmallDAG {
     --hashMapSize;
   }
 
-  private void releaseHashMapElement(short index, int hash) {
+  private void releaseHashMapElement(short index, short hash) {
     int hashMapIndex = findSubTreeInHashMap(index, hash);
     if(hashMapIndex == -1)
       throw new RuntimeException("Element not in hashmap");
@@ -333,7 +333,7 @@ public class SmallDAG {
       freeHashMapElement(hashMapIndex);
   }
 
-  private int addHashMapElement(short index, int hash) {
+  private int addHashMapElement(short index, short hash) {
     int hashMapIndex = findSubTreeInHashMap(index, hash);
     if(hashMapIndex != -1) {
       countMap[hashMapIndex]++;
@@ -343,7 +343,7 @@ public class SmallDAG {
     return insertInHashMap(hash, index, (short)1);
   }
 
-  private int editSiblings(short index, boolean canBeInplace, short[] siblings, int modifiedHash) {
+  private int editSiblings(short index, boolean canBeInplace, short[] siblings, short modifiedHash) {
     int modifiedHashMapIndex = findSubTreeInHashMap(siblings, modifiedHash);
     boolean alreadyExists = modifiedHashMapIndex != -1;
 
@@ -372,7 +372,7 @@ public class SmallDAG {
     return insertInHashMap(modifiedHash, newIndex, (short)1);
   }
 
-  private int addSiblings(short[] siblings, int hash) {
+  private int addSiblings(short[] siblings, short hash) {
     int hashMapIndex = findSubTreeInHashMap(siblings, hash);
     if(hashMapIndex != -1) {
       countMap[hashMapIndex]++;
@@ -407,7 +407,7 @@ public class SmallDAG {
         for(int i = level+1; i <= DEPTH; ++i) {
 //          detectCycle();
           short index = treeData[parents[i]];
-          int hash = hashSubTree(index);
+          short hash = hashSubTree(index);
           int hashMapIndex = findSubTreeInHashMap(index, hash);
           if(hashMapIndex == -1)
             throw new RuntimeException("lol");
@@ -418,7 +418,7 @@ public class SmallDAG {
 //        detectCycle();
 
         Arrays.fill(siblings, treeData[nodeIndex]);
-        int hash = hashSubTree(siblings);
+        short hash = hashSubTree(siblings);
         int hashMapIndex = addSiblings(siblings, hash);
 //        detectCycle();
         int levelAncestor = level+1;
@@ -472,7 +472,7 @@ public class SmallDAG {
     for(int i = level+1; i <= DEPTH; ++i) {
 //      detectCycle();
       short index = treeData[parents[i]];
-      int hash = hashSubTree(index);
+      short hash = hashSubTree(index);
       int hashMapIndex = findSubTreeInHashMap(index, hash);
       if(hashMapIndex == -1)
         throw new RuntimeException("lol");
@@ -485,7 +485,7 @@ public class SmallDAG {
     System.arraycopy(treeData, siblingsToEditIndex << 3, siblings, 0, 8);
     assert siblings[childNumbers[level]] <= 0;
     siblings[childNumbers[level]] = encodedType;
-    int hash = hashSubTree(siblings);
+    short hash = hashSubTree(siblings);
     int hashMapIndex = editSiblings(siblingsToEditIndex, canChangeInPlace[level], siblings, hash);
 //    detectCycle();
     int levelAncestor = level+1;
