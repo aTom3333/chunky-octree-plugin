@@ -383,15 +383,18 @@ public class SmallDAG {
     --hashMapSize;
   }
 
-  private void releaseHashMapElement(short index, short hash) {
+  private boolean releaseHashMapElement(short index, short hash) {
     int hashMapIndex = findSubTreeInHashMap(index, hash);
     if(hashMapIndex == -1)
       throw new RuntimeException("Element not in hashmap");
 
-    if(countMap[hashMapIndex] > 1)
+    if(countMap[hashMapIndex] > 1) {
       --countMap[hashMapIndex];
-    else
+      return false;
+    } else {
       freeHashMapElement(hashMapIndex);
+      return true;
+    }
   }
 
   private int addHashMapElement(short index, short hash) {
@@ -444,7 +447,7 @@ public class SmallDAG {
   }
 
   private void prepareAncestorsForEditing(int[] parents, boolean[] canChangeInPlace, int level) {
-    for(int i = DEPTH; i >= level+1; --i) {
+    for(int i = DEPTH; i >= level; --i) {
       short index = treeData[parents[i]];
       short hash = hashSubTree(index);
       int hashMapIndex = findSubTreeInHashMap(index, hash);
@@ -459,7 +462,7 @@ public class SmallDAG {
 
   private void updateAncestorsAfterEdit(int[] parents, int[] childNumbers, short[] siblings, int level, int hashMapIndex, boolean[] canChangeInplace) {
     int levelAncestor = level+1;
-    while(true) {
+    while(levelAncestor <= DEPTH) {
       short indexOfNewSiblings = indexMap[hashMapIndex];
       int parentIndex = parents[levelAncestor];
       short siblingIndex = treeData[parentIndex];
@@ -513,7 +516,7 @@ public class SmallDAG {
         return;
       } else if(treeData[nodeIndex] <= 0) {
         // subdivide node
-        prepareAncestorsForEditing(parents, canChangeInPlace, level);
+        prepareAncestorsForEditing(parents, canChangeInPlace, level+1);
 
         Arrays.fill(siblings, treeData[nodeIndex]);
         short hash = hashSubTree(siblings);
@@ -544,32 +547,38 @@ public class SmallDAG {
 
 
     // Merge nodes where all children have been set to the same type.
-//    for(int mergeLevel = 0; mergeLevel <= parentLevel; ++mergeLevel) {
-//      int parentIndex = parents[mergeLevel];
-//
-//
-//
-//        boolean allSame = true;
-//        short siblingsIndex = treeData[parentIndex];
-//        int longSiblingsIndex = siblingsIndex << 3;
-//        short first = treeData[longSiblingsIndex];
-//        if(first < 0) {
-//          for(int j = 1; j < 8; ++j) {
-//            if(first != treeData[longSiblingsIndex + j]) {
-//              allSame = false;
-//              break;
-//            }
-//          }
-//
-//          if(allSame) {
-//            mergeNode(parentIndex, treeData[nodeIndex]);
-//            nodeIndex = parentIndex;
-//          } else {
-//            break;
-//          }
-//        }
-//
-//    }
+    if(parentLevel >= DEPTH)
+      parentLevel = DEPTH-1;
+    for(int mergeLevel = 0; mergeLevel <= parentLevel; ++mergeLevel) {
+      int parentIndex = parents[mergeLevel];
+
+      boolean allSame = true;
+      short siblingsIndex = treeData[parentIndex];
+      int longSiblingsIndex = siblingsIndex << 3;
+      short first = treeData[longSiblingsIndex];
+      if(first > 0)
+        break;
+      for(int j = 1; j < 8; ++j) {
+        if(first != treeData[longSiblingsIndex + j]) {
+          allSame = false;
+          break;
+        }
+      }
+
+      if(allSame) {
+        prepareAncestorsForEditing(parents, canChangeInPlace, mergeLevel+1);
+        if(releaseHashMapElement(siblingsIndex, hashSubTree(siblingsIndex)))
+          freeSpace(siblingsIndex);
+        short parentSiblingsIndex = treeData[parents[mergeLevel+1]];
+        int longParentSiblingsIndex = parentSiblingsIndex << 3;
+        System.arraycopy(treeData, longParentSiblingsIndex, siblings, 0, 8);
+        siblings[childNumbers[mergeLevel+1]] = first;
+        hashMapIndex = editSiblings(parentSiblingsIndex, canChangeInPlace[mergeLevel+1], siblings, hashSubTree(siblings));
+        updateAncestorsAfterEdit(parents, childNumbers, siblings, mergeLevel+1, hashMapIndex, canChangeInPlace);
+      } else {
+        break;
+      }
+    }
   }
 
   private void detectCycle() {
@@ -654,14 +663,7 @@ public class SmallDAG {
   public static void main(String[] args) {
     SmallDAG t = new SmallDAG();
     t.set(3, 0, 0, 0);
-    t.set(3, 1, 0, 0);
-    t.set(3, 2, 0, 0);
-    t.set(3, 3, 0, 0);
-    t.set(3, 4, 0, 0);
-    t.set(3, 5, 0, 0);
-    t.set(3, 6, 0, 0);
-    t.set(3, 7, 0, 0);
-    t.set(3, 8, 0, 0);
+    t.set(0, 0, 0, 0);
     System.out.println("yo");
   }
 
