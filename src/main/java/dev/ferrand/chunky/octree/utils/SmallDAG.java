@@ -474,7 +474,7 @@ public class SmallDAG {
           canChangeInPlace[i] = countMap[hashMapIndex] == 1;
 
           releaseHashMapElement(index, hash);
-          cachedHashes[i] = -1;
+          cachedHashes[index] = -1;
         }
 //        detectCycle();
 
@@ -494,10 +494,10 @@ public class SmallDAG {
           siblings[childNumbers[levelAncestor]] = indexOfNewSiblings;
           hashMapIndex = editSiblings(siblingIndex, canChangeInPlace[levelAncestor], siblings, hashSubTree(siblings));
 //          detectCycle();
-//          if(indexMap[hashMapIndex] == siblingIndex) {
-//            // Inplace edit, no need to change parents
-//            break;
-//          }
+          if(indexMap[hashMapIndex] == siblingIndex) {
+            // Inplace edit, no need to change parents
+            break;
+          }
           if(levelAncestor == DEPTH) {
             // Went back to the root
             // Never shared so direct write is safe
@@ -516,6 +516,15 @@ public class SmallDAG {
           }
           ++levelAncestor;
         }
+
+        // Re-add to the hash map the subtrees that have been removed earlier
+        // but not re-added because they weren't directly changed
+        for(int i = levelAncestor+1; i < DEPTH+1; ++i) {
+          short index = treeData[parents[i]];
+          short newHash = hashSubTree(index);
+          addHashMapElement(index, newHash);
+        }
+
 //        detectCycle();
 
         parentLevel = level;
@@ -540,7 +549,7 @@ public class SmallDAG {
       canChangeInPlace[i] = countMap[hashMapIndex] == 1;
 
       releaseHashMapElement(index, hash);
-      cachedHashes[i] = -1;
+      cachedHashes[index] = -1;
     }
 //    detectCycle();
     short siblingsToEditIndex = treeData[parents[level]];
@@ -563,10 +572,10 @@ public class SmallDAG {
       siblings[childNumbers[levelAncestor]] = indexOfNewSiblings;
       hashMapIndex = editSiblings(siblingIndex, canChangeInPlace[levelAncestor], siblings, hashSubTree(siblings));
 //      detectCycle();
-//      if(indexMap[hashMapIndex] == siblingIndex) {
-//        // Inplace edit, no need to change parents
-//        break;
-//      }
+      if(indexMap[hashMapIndex] == siblingIndex) {
+        // Inplace edit, no need to change parents
+        break;
+      }
       if(levelAncestor == DEPTH) {
         // Went back to the root
         // Never shared so direct write is safe
@@ -580,6 +589,14 @@ public class SmallDAG {
         nodeIndex = parents[level+1-1];
       }
       ++levelAncestor;
+    }
+
+    // Re-add to the hash map the subtrees that have been removed earlier
+    // but not re-added because they weren't directly changed
+    for(int i = levelAncestor+1; i < DEPTH+1; ++i) {
+      short index = treeData[parents[i]];
+      short newHash = hashSubTree(index);
+      addHashMapElement(index, newHash);
     }
 //    detectCycle();
 //    int groupIndex = treeData[parents[0]];
