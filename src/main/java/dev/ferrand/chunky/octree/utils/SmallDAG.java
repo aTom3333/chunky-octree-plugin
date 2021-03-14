@@ -443,6 +443,55 @@ public class SmallDAG {
     return insertInHashMap(hash, index, (short)1);
   }
 
+  private void prepareAncestorsForEditing(int[] parents, boolean[] canChangeInPlace, int level) {
+    for(int i = DEPTH; i >= level+1; --i) {
+      short index = treeData[parents[i]];
+      short hash = hashSubTree(index);
+      int hashMapIndex = findSubTreeInHashMap(index, hash);
+      if(hashMapIndex == -1)
+        throw new RuntimeException("lol");
+      canChangeInPlace[i] = countMap[hashMapIndex] == 1;
+
+      releaseHashMapElement(index, hash);
+      cachedHashes[index] = -1;
+    }
+  }
+
+  private void updateAncestorsAfterEdit(int[] parents, int[] childNumbers, short[] siblings, int level, int hashMapIndex, boolean[] canChangeInplace) {
+    int levelAncestor = level+1;
+    while(true) {
+      short indexOfNewSiblings = indexMap[hashMapIndex];
+      int parentIndex = parents[levelAncestor];
+      short siblingIndex = treeData[parentIndex];
+      int siblingLongIndex = siblingIndex << 3;
+      assert (parents[levelAncestor - 1] >= siblingLongIndex) && (parents[levelAncestor - 1] < (siblingLongIndex + 8));
+      System.arraycopy(treeData, siblingLongIndex, siblings, 0, 8);
+      siblings[childNumbers[levelAncestor]] = indexOfNewSiblings;
+      hashMapIndex = editSiblings(siblingIndex, canChangeInplace[levelAncestor], siblings, hashSubTree(siblings));
+      if(indexMap[hashMapIndex] == siblingIndex) {
+        // Inplace edit, no need to change parents
+        break;
+      }
+      if(levelAncestor == DEPTH) {
+        // Went back to the root
+        // Never shared so direct write is safe
+        treeData[0] = indexMap[hashMapIndex];
+        parents[DEPTH - 1] = (treeData[0] << 3) + childNumbers[DEPTH];
+        break;
+      }
+      parents[levelAncestor - 1] = (indexMap[hashMapIndex] << 3) + childNumbers[levelAncestor];
+      ++levelAncestor;
+    }
+
+    // Re-add to the hash map the subtrees that have been removed earlier
+    // but not re-added because they weren't directly changed
+    for(int i = levelAncestor + 1; i < DEPTH + 1; ++i) {
+      short index = treeData[parents[i]];
+      short newHash = hashSubTree(index);
+      addHashMapElement(index, newHash);
+    }
+  }
+
   public void set(int type, int x, int y, int z) {
 //    System.err.printf("t.set(%d, %d, %d, %d);\n", type, x, y, z);
 //    System.err.flush();
@@ -464,68 +513,13 @@ public class SmallDAG {
         return;
       } else if(treeData[nodeIndex] <= 0) {
         // subdivide node
-        for(int i = DEPTH; i >= level+1; --i) {
-//          detectCycle();
-          short index = treeData[parents[i]];
-          short hash = hashSubTree(index);
-          int hashMapIndex = findSubTreeInHashMap(index, hash);
-          if(hashMapIndex == -1)
-            throw new RuntimeException("lol");
-          canChangeInPlace[i] = countMap[hashMapIndex] == 1;
-
-          releaseHashMapElement(index, hash);
-          cachedHashes[index] = -1;
-        }
-//        detectCycle();
+        prepareAncestorsForEditing(parents, canChangeInPlace, level);
 
         Arrays.fill(siblings, treeData[nodeIndex]);
         short hash = hashSubTree(siblings);
         int hashMapIndex = addSiblings(siblings, hash);
-//        detectCycle();
-        int levelAncestor = level+1;
-        while(true) {
-//          detectCycle();
-          short indexOfNewSiblings = indexMap[hashMapIndex];
-          int parentIndex = parents[levelAncestor];
-          short siblingIndex = treeData[parentIndex];
-          int siblingLongIndex = siblingIndex << 3;
-          assert (parents[levelAncestor - 1] >= siblingLongIndex) && (parents[levelAncestor - 1] < (siblingLongIndex + 8));
-          System.arraycopy(treeData, siblingLongIndex, siblings, 0, 8);
-          siblings[childNumbers[levelAncestor]] = indexOfNewSiblings;
-          hashMapIndex = editSiblings(siblingIndex, canChangeInPlace[levelAncestor], siblings, hashSubTree(siblings));
-//          detectCycle();
-          if(indexMap[hashMapIndex] == siblingIndex) {
-            // Inplace edit, no need to change parents
-            break;
-          }
-          if(levelAncestor == DEPTH) {
-            // Went back to the root
-            // Never shared so direct write is safe
-            treeData[0] = indexMap[hashMapIndex];
-            parents[DEPTH-1] = (treeData[0] << 3) + childNumbers[DEPTH];
-            if(level == DEPTH-1) {
-              // First iteration
-              nodeIndex = parents[DEPTH-1];
-            }
-            break;
-          }
-          parents[levelAncestor-1] = (indexMap[hashMapIndex] << 3) + childNumbers[levelAncestor];
-          if(levelAncestor == level+1) {
-            // First iteration
-            nodeIndex = parents[level];
-          }
-          ++levelAncestor;
-        }
-
-        // Re-add to the hash map the subtrees that have been removed earlier
-        // but not re-added because they weren't directly changed
-        for(int i = levelAncestor+1; i < DEPTH+1; ++i) {
-          short index = treeData[parents[i]];
-          short newHash = hashSubTree(index);
-          addHashMapElement(index, newHash);
-        }
-
-//        detectCycle();
+        updateAncestorsAfterEdit(parents, childNumbers, siblings, level, hashMapIndex, canChangeInPlace);
+        nodeIndex = parents[level];
 
         parentLevel = level;
       }
@@ -539,131 +533,46 @@ public class SmallDAG {
 
     ++level;
 
-    for(int i = DEPTH; i >= level+1; --i) {
-//          detectCycle();
-      short index = treeData[parents[i]];
-      short hash = hashSubTree(index);
-      int hashMapIndex = findSubTreeInHashMap(index, hash);
-      if(hashMapIndex == -1)
-        throw new RuntimeException("lol");
-      canChangeInPlace[i] = countMap[hashMapIndex] == 1;
-
-      releaseHashMapElement(index, hash);
-      cachedHashes[index] = -1;
-    }
-//    detectCycle();
+    prepareAncestorsForEditing(parents, canChangeInPlace, level);
     short siblingsToEditIndex = treeData[parents[level]];
     System.arraycopy(treeData, siblingsToEditIndex << 3, siblings, 0, 8);
     assert siblings[childNumbers[level]] <= 0;
     siblings[childNumbers[level]] = encodedType;
     short hash = hashSubTree(siblings);
     int hashMapIndex = editSiblings(siblingsToEditIndex, canChangeInPlace[level], siblings, hash);
-//    detectCycle();
-    int levelAncestor = level+1;
-    while(true /*siblingsToEditIndex != indexMap[hashMapIndex]*/) {
-//      detectCycle();
-      // Copy on write, propagate change to parents until an inplace modification
-      short indexOfNewSiblings = indexMap[hashMapIndex];
-      int parentIndex = parents[levelAncestor];
-      short siblingIndex = treeData[parentIndex];
-      int siblingLongIndex = siblingIndex << 3;
-      assert (parents[levelAncestor - 1] >= siblingLongIndex) && (parents[levelAncestor - 1] < (siblingLongIndex + 8));
-      System.arraycopy(treeData, siblingLongIndex, siblings, 0, 8);
-      siblings[childNumbers[levelAncestor]] = indexOfNewSiblings;
-      hashMapIndex = editSiblings(siblingIndex, canChangeInPlace[levelAncestor], siblings, hashSubTree(siblings));
-//      detectCycle();
-      if(indexMap[hashMapIndex] == siblingIndex) {
-        // Inplace edit, no need to change parents
-        break;
-      }
-      if(levelAncestor == DEPTH) {
-        // Went back to the root
-        // Never shared so direct write is safe
-        treeData[0] = indexMap[hashMapIndex];
-        parents[DEPTH-1] = (treeData[0] << 3) + childNumbers[DEPTH];
-        break;
-      }
-      parents[levelAncestor-1] = (indexMap[hashMapIndex] << 3) + childNumbers[levelAncestor];
-      if(levelAncestor == level+1) {
-        // First iteration
-        nodeIndex = parents[level+1-1];
-      }
-      ++levelAncestor;
-    }
+    updateAncestorsAfterEdit(parents, childNumbers, siblings, level, hashMapIndex, canChangeInPlace);
 
-    // Re-add to the hash map the subtrees that have been removed earlier
-    // but not re-added because they weren't directly changed
-    for(int i = levelAncestor+1; i < DEPTH+1; ++i) {
-      short index = treeData[parents[i]];
-      short newHash = hashSubTree(index);
-      addHashMapElement(index, newHash);
-    }
-//    detectCycle();
-//    int groupIndex = treeData[parents[0]];
-//    short shortType = bigToSmall(data.type);
-//    short[] previousGroup = new short[8];
-//    for(int i = 0; i < 8; ++i)
-//      previousGroup[i] = dict[groupIndex + i];
-//    previousGroup[position] = shortType;
-//    int newGroupIndex = findGroup(
-//            previousGroup[0],
-//            previousGroup[1],
-//            previousGroup[2],
-//            previousGroup[3],
-//            previousGroup[4],
-//            previousGroup[5],
-//            previousGroup[6],
-//            previousGroup[7]
-//    );
-//    treeData[parents[0]] = newGroupIndex;
+
+    // Merge nodes where all children have been set to the same type.
+//    for(int mergeLevel = 0; mergeLevel <= parentLevel; ++mergeLevel) {
+//      int parentIndex = parents[mergeLevel];
 //
-//    // Merge nodes where all children have been set to the same type.
-//    for(int i = 0; i <= parentLevel; ++i) {
-//      int parentIndex = parents[i];
 //
-//      if(i == 0) {
+//
 //        boolean allSame = true;
-//        short first = dict[newGroupIndex];
-//        for(int j = 1; j < 8; ++j) {
-//          int childType = dict[newGroupIndex + j];
-//          if(childType != first) {
-//            allSame = false;
+//        short siblingsIndex = treeData[parentIndex];
+//        int longSiblingsIndex = siblingsIndex << 3;
+//        short first = treeData[longSiblingsIndex];
+//        if(first < 0) {
+//          for(int j = 1; j < 8; ++j) {
+//            if(first != treeData[longSiblingsIndex + j]) {
+//              allSame = false;
+//              break;
+//            }
+//          }
+//
+//          if(allSame) {
+//            mergeNode(parentIndex, treeData[nodeIndex]);
+//            nodeIndex = parentIndex;
+//          } else {
 //            break;
 //          }
 //        }
 //
-//        if(allSame) {
-//          // Can't free the space in the dictionary because it might be used by others groups
-//          // Ideally, we would keep a reference count around
-//          int type = smallToBig(first);
-//          treeData[parents[0]] = -type;
-//          nodeIndex = parents[0];
-//        } else {
-//          break;
-//        }
-//      } else {
-//        boolean allSame = true;
-//        for(int j = 0; j < 8; ++j) {
-//          int childIndex = treeData[parentIndex] + j;
-//          if(!nodeEquals(childIndex, nodeIndex)) {
-//            allSame = false;
-//            break;
-//          }
-//        }
-//
-//        if(allSame) {
-//          mergeNode(parentIndex, treeData[nodeIndex]);
-//          nodeIndex = parentIndex;
-//        } else {
-//          break;
-//        }
-//      }
 //    }
   }
 
   private void detectCycle() {
-    if(true)
-      return;
     ArrayList<Short> visited = new ArrayList<>();
     visited.add((short) 0);
     detectCycleNode(0, visited);
