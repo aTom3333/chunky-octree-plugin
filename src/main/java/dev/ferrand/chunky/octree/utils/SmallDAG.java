@@ -1,5 +1,6 @@
 package dev.ferrand.chunky.octree.utils;
 
+import org.apache.commons.math3.util.Pair;
 import se.llbit.math.Octree;
 
 import java.util.ArrayList;
@@ -619,8 +620,24 @@ public class SmallDAG {
     return smallToBig((short) -treeData[getNodeIndex(x, y, z)]);
   }
 
+  public Pair<Octree.NodeId, Integer> getWithLevel(int x, int y, int z) {
+    int level = 6;
+    int index = 0;
+    while(treeData[index] > 0) {
+      --level;
+      int lx = x >>> level;
+      int ly = y >>> level;
+      int lz = z >>> level;
+      int position = (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
+      index = (treeData[index] << 3) + position;
+    }
+
+    return new Pair<>(new SmallDAGNodeId(index, this), level);
+  }
+
   public interface ISmallDAGBasedNodeId extends Octree.NodeId {
     <R> R visit(Function<IExternalSmallDAGBasedNodeId, R> visitor1, Function<SmallDAGNodeId, R> visitor2);
+    int getType();
   }
 
   public interface IExternalSmallDAGBasedNodeId extends ISmallDAGBasedNodeId {
@@ -632,19 +649,26 @@ public class SmallDAG {
 
   public static class SmallDAGNodeId implements ISmallDAGBasedNodeId {
     private int nodeIndex;
+    public final SmallDAG self;
 
-    public SmallDAGNodeId(int nodeIndex) {
+    public SmallDAGNodeId(int nodeIndex, SmallDAG self) {
       this.nodeIndex = nodeIndex;
+      this.self = self;
     }
 
     @Override
     public <R> R visit(Function<IExternalSmallDAGBasedNodeId, R> visitor1, Function<SmallDAGNodeId, R> visitor2) {
       return visitor2.apply(this);
     }
+
+    @Override
+    public int getType() {
+      return smallToBig((short) -self.treeData[nodeIndex]);
+    }
   }
 
   public SmallDAGNodeId getRoot() {
-    return new SmallDAGNodeId(0);
+    return new SmallDAGNodeId(0, this);
   }
 
   public boolean isBranch(SmallDAGNodeId nodeId) {
@@ -656,9 +680,14 @@ public class SmallDAG {
   }
 
   public SmallDAGNodeId getChild(SmallDAGNodeId nodeId, int childNo) {
-    return new SmallDAGNodeId((treeData[nodeId.nodeIndex] << 3) + childNo);
+    return new SmallDAGNodeId((treeData[nodeId.nodeIndex] << 3) + childNo, this);
   }
 
+  public void removeHashMapData() {
+    indexMap = null;
+    countMap = null;
+    cachedHashes = null;
+  }
 
   public static void main(String[] args) {
     SmallDAG t = new SmallDAG();
