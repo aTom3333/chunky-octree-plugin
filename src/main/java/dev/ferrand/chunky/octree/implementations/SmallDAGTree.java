@@ -6,10 +6,10 @@ import se.llbit.chunky.chunk.BlockPalette;
 import se.llbit.chunky.world.Material;
 import se.llbit.math.Octree;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
+
+import static se.llbit.math.Octree.BRANCH_NODE;
 
 public class SmallDAGTree implements Octree.OctreeImplementation {
   private ArrayList<SmallDAG> dags;
@@ -168,11 +168,6 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
   }
 
   @Override
-  public void store(DataOutputStream dataOutputStream) throws IOException {
-
-  }
-
-  @Override
   public int getDepth() {
     return depth;
   }
@@ -226,21 +221,69 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
       dag.removeHashMapData();
   }
 
+  @Override
+  public void store(DataOutputStream out) throws IOException {
+    out.writeInt(getDepth());
+    storeNode(out, getRoot());
+  }
+
+  private void storeNode(DataOutputStream out, Octree.NodeId node) throws IOException {
+    if(isBranch(node)) {
+      out.writeInt(BRANCH_NODE);
+      for(int i = 0; i < 8; ++i) {
+        storeNode(out, getChild(node, i));
+      }
+    } else {
+      int type = getType(node);
+      int data = getData(node);
+      if(data != 0) {
+        out.writeInt(type | Octree.DATA_FLAG);
+        out.writeInt(data);
+      } else {
+        out.writeInt(type);
+      }
+    }
+  }
+
+  static private SmallDAGTree load(DataInputStream in) throws IOException {
+    int depth = in.readInt();
+    SmallDAGTree tree = new SmallDAGTree(depth);
+    tree.loadNode(in, depth-1, 0, 0, 0);
+    return tree;
+  }
+
+  private void loadNode(DataInputStream in, int level, int x, int y, int z) throws IOException {
+    int type = in.readInt();
+    if(type == BRANCH_NODE) {
+      for(int dx = 0; dx < 2; ++dx)
+      for(int dy = 0; dy < 2; ++dy)
+      for(int dz = 0; dz < 2; ++dz) {
+        loadNode(in, level-1, x + (dx << level), y + (dy << level), z + (dz << level));
+      }
+    } else {
+      for(int localX = x; localX < x + (1 << (level+1)); ++localX)
+      for(int localY = y; localY < y + (1 << (level+1)); ++localY)
+      for(int localZ = z; localZ < z + (1 << (level+1)); ++localZ)
+        set(type, localX, localY, localZ);
+    }
+  }
+
   static public void initImplementation() {
     Octree.addImplementationFactory("DAG_TREE", new Octree.ImplementationFactory() {
       @Override
+      
       public Octree.OctreeImplementation create(int depth) {
         return new SmallDAGTree(depth);
       }
 
       @Override
       public Octree.OctreeImplementation load(DataInputStream in) throws IOException {
-        return null;
+        return SmallDAGTree.load(in);
       }
 
       @Override
       public Octree.OctreeImplementation loadWithNodeCount(long nodeCount, DataInputStream in) throws IOException {
-        return null;
+        return SmallDAGTree.load(in);
       }
 
       @Override
@@ -250,7 +293,7 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
 
       @Override
       public String getDescription() {
-        return "TODO";
+        return "Use 16 bits representation nistead of 32 bits for most of the nodes and deduplicate subtrees to save memory.";
       }
     });
   }

@@ -140,5 +140,19 @@ Drawbacks of this implementation:
  that could slow a bit down but the difference is not that big.
  - Slower than `PACKED` octree during loading. During loading there is more work needed
  so it loads slower.
+ 
+### Small DAG Implementation
+Available under the name `DAG_TREE`. It is a tree containing small trees.
+The small trees represents 64\*64\*64 blocks each. Nodes of the small trees are deduplicated, 
+which technically make them directed acyclic graph and not just trees. The small trees (or rather DAG) can use only 16 bits
+per nodes due to them being so small (limiting the max number of nodes it could have)
+
+#### Comparison
+Advantages of this implementation:
+ - Lower memory usage than even `DICTIONARY`.
+ 
+Drawbacks of this implementation:
+ - Very slow during building and loading of the octree (there are way to improve that which will be implemented later).
+ - Slower than `PACKED` at rendering
 
 [chunky]: https://chunky.llbit.se/
