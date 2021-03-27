@@ -1,6 +1,6 @@
 package dev.ferrand.chunky.octree.utils;
 
-import org.apache.commons.math3.util.Pair;
+import it.unimi.dsi.fastutil.ints.IntIntMutablePair;
 import se.llbit.math.Octree;
 
 import java.util.ArrayList;
@@ -620,7 +620,7 @@ public class SmallDAG {
     return smallToBig((short) -treeData[getNodeIndex(x, y, z)]);
   }
 
-  public Pair<Octree.NodeId, Integer> getWithLevel(int x, int y, int z) {
+  public void getWithLevel(IntIntMutablePair outTypeAndLevel, int x, int y, int z) {
     int level = 6;
     int index = 0;
     while(treeData[index] > 0) {
@@ -632,7 +632,7 @@ public class SmallDAG {
       index = (treeData[index] << 3) + position;
     }
 
-    return new Pair<>(new SmallDAGNodeId(index, this), level);
+    outTypeAndLevel.left(smallToBig((short) -treeData[index])).right(level);
   }
 
   public interface ISmallDAGBasedNodeId extends Octree.NodeId {

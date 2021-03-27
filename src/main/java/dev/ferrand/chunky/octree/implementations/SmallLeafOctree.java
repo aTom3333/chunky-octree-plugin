@@ -1,6 +1,6 @@
 package dev.ferrand.chunky.octree.implementations;
 
-import org.apache.commons.math3.util.Pair;
+import it.unimi.dsi.fastutil.ints.IntIntMutablePair;
 import se.llbit.chunky.chunk.BlockPalette;
 import se.llbit.chunky.world.Material;
 import se.llbit.math.Octree;
@@ -454,7 +454,7 @@ public class SmallLeafOctree implements OctreeImplementation {
   }
 
   @Override
-  public Pair<Octree.NodeId, Integer> getWithLevel(int x, int y, int z) {
+  public void getWithLevel(IntIntMutablePair outTypeAndLevel, int x, int y, int z) {
     int level = depth;
     int nodeIndex = 0;
     int nodeValue = treeData[nodeIndex];
@@ -466,8 +466,10 @@ public class SmallLeafOctree implements OctreeImplementation {
       nodeIndex = nodeValue + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
       nodeValue = treeData[nodeIndex];
     }
-    if(nodeValue <= 0)
-      return new Pair<>(NodeId.cachedType(-nodeValue), level);
+    if(nodeValue <= 0) {
+      outTypeAndLevel.left(-nodeValue).right(level);
+      return;
+    }
 
     int xbit = x & 1;
     int ybit = y & 1;
@@ -478,8 +480,10 @@ public class SmallLeafOctree implements OctreeImplementation {
     // Is branchless code really a good idea?
     int type = ((combinedType >>> 16) & ~mask) | ((combinedType & 0xFFFF) & mask);
     if(type == SMALL_ANY_TYPE)
-      return new Pair<>(NodeId.cachedType(ANY_TYPE), 0);
-    return new Pair<>(NodeId.cachedType(type), 0);
+      outTypeAndLevel.left(ANY_TYPE);
+    else
+      outTypeAndLevel.left(type);
+    outTypeAndLevel.right(0);
   }
 
   @Override

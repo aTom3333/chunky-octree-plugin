@@ -1,6 +1,6 @@
 package dev.ferrand.chunky.octree.implementations;
 
-import org.apache.commons.math3.util.Pair;
+import it.unimi.dsi.fastutil.ints.IntIntMutablePair;
 import se.llbit.chunky.chunk.BlockPalette;
 import se.llbit.chunky.world.Material;
 import se.llbit.math.Octree;
@@ -487,7 +487,7 @@ public class DictionaryOctree implements OctreeImplementation {
   }
 
   @Override
-  public Pair<Octree.NodeId, Integer> getWithLevel(int x, int y, int z) {
+  public void getWithLevel(IntIntMutablePair outTypeAndLevel, int x, int y, int z) {
     int level = depth;
     int nodeIndex = 0;
     int nodeValue = treeData[nodeIndex];
@@ -499,14 +499,16 @@ public class DictionaryOctree implements OctreeImplementation {
       nodeIndex = nodeValue + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
       nodeValue = treeData[nodeIndex];
     }
-    if(nodeValue <= 0)
-      return new Pair<>(new NodeId(nodeIndex, depth - level), level);
+    if(nodeValue <= 0) {
+      outTypeAndLevel.left(-nodeValue).right(level);
+      return;
+    }
 
     int xbit = x & 1;
     int ybit = y & 1;
     int zbit = z & 1;
     int childIndex = nodeValue + ((xbit << 2) | (ybit << 1) | zbit);
-    return new Pair<>(new NodeId(childIndex, depth), 0);
+    outTypeAndLevel.left(smallToBig(dict[childIndex])).right(0);
   }
 
   @Override

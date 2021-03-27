@@ -1,7 +1,7 @@
 package dev.ferrand.chunky.octree.implementations;
 
 import dev.ferrand.chunky.octree.utils.SmallDAG;
-import org.apache.commons.math3.util.Pair;
+import it.unimi.dsi.fastutil.ints.IntIntMutablePair;
 import se.llbit.chunky.chunk.BlockPalette;
 import se.llbit.chunky.world.Material;
 import se.llbit.math.Octree;
@@ -141,7 +141,7 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
   }
 
   @Override
-  public Pair<Octree.NodeId, Integer> getWithLevel(int x, int y, int z) {
+  public void getWithLevel(IntIntMutablePair outTypeAndLevel, int x, int y, int z) {
     int index = 0;
     int level = depth;
     while(true) {
@@ -150,14 +150,17 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
       int ly = y >>> level;
       int lz = z >>> level;
       index = treeData[index] + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
-      if(treeData[index] <= 0)
-        return new Pair<>(new NodeId(index, 0, this), level);
+      if(treeData[index] <= 0) {
+        outTypeAndLevel.left(-treeData[index]).right(level);
+        return;
+      }
       if(level == 6) {
         int dagIndex = treeData[index];
         if(dagIndex > dags.size())
           throw new RuntimeException("oob");
         SmallDAG dag = dags.get(dagIndex-1);
-        return dag.getWithLevel(x, y, z);
+        dag.getWithLevel(outTypeAndLevel, x, y, z);
+        return;
       }
     }
   }

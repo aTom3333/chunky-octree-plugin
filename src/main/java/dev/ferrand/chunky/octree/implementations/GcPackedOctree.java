@@ -1,8 +1,7 @@
 package dev.ferrand.chunky.octree.implementations;
 
-import org.apache.commons.math3.util.Pair;
+import it.unimi.dsi.fastutil.ints.IntIntMutablePair;
 import se.llbit.chunky.PersistentSettings;
-import se.llbit.chunky.block.UnknownBlock;
 import se.llbit.chunky.chunk.BlockPalette;
 import se.llbit.chunky.world.Material;
 import se.llbit.math.Octree;
@@ -313,7 +312,7 @@ public class GcPackedOctree implements OctreeImplementation {
   }
 
   @Override
-  public Pair<Octree.NodeId, Integer> getWithLevel(int x, int y, int z) {
+  public void getWithLevel(IntIntMutablePair outTypeAndLevel, int x, int y, int z) {
     int nodeIndex = 0;
     int level = depth;
     while(treeData[nodeIndex] > 0) {
@@ -323,7 +322,7 @@ public class GcPackedOctree implements OctreeImplementation {
       int lz = z >>> level;
       nodeIndex = treeData[nodeIndex] + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
     }
-    return new Pair<>(new NodeId(nodeIndex), level);
+    outTypeAndLevel.left(-treeData[nodeIndex]).right(level);
   }
 
   @Override
