@@ -83,6 +83,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
     private long finalizationEndTime;
     private int maxType;
     private int allocation;
+    private long blockCount;
 
     private static final class NodeId implements Octree.NodeId {
         int nodeIndex;
@@ -150,6 +151,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
         finalizationEndTime = 0;
         maxType = 0;
         allocation = 1;
+        blockCount = 0;
     }
 
     /**
@@ -176,6 +178,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
         finalizationEndTime = 0;
         maxType = 0;
         allocation = 1;
+        blockCount = 0;
     }
 
     /**
@@ -301,6 +304,8 @@ public class StatsOctree extends AbstractOctreeImplementation {
         if(data.type != ANY_TYPE) {
             maxType = Math.max(maxType, data.type);
         }
+        if(data.type != 0)
+            ++blockCount;
 
         int[] parents = new int[depth]; // better to put as a field to preventallocation at each invocation?
         int nodeIndex = 0;
@@ -572,6 +577,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
         System.out.printf("loading time: %fs\n", loadingTime);
         System.out.printf("finalization time: %fs\n", finalizationTime);
 
+        show("number of non-air blocks", blockCount);
         compare("number of nodes", totalNodesBuilding, totalNodes);
         compare("number of branch nodes", branchNodeBuilding, branchNode);
         compare("number of leaf nodes", leafNodesBuilding, leafNodes);
