@@ -152,7 +152,7 @@ Advantages of this implementation:
  - Lower memory usage than even `DICTIONARY`.
  
 Drawbacks of this implementation:
- - Very slow during building and loading of the octree (there are way to improve that which will be implemented later).
+ - Slower then `PACKED` during building and loading of the octree. (but not as slow as it was initially)
  - Slower than `PACKED` at rendering
 
 [chunky]: https://chunky.llbit.se/
