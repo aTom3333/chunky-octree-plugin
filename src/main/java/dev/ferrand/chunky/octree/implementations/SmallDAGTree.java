@@ -8,16 +8,23 @@ import se.llbit.math.Octree;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.List;
 
+import static dev.ferrand.chunky.octree.utils.SmallDAG.SMALL_ANY_TYPE;
+import static se.llbit.math.Octree.ANY_TYPE;
 import static se.llbit.math.Octree.BRANCH_NODE;
 
 public class SmallDAGTree implements Octree.OctreeImplementation {
-  private ArrayList<SmallDAG> dags;
+  private final ArrayList<SmallDAG> dags;
   private int[] treeData;
   private int size;
   private final int depth;
   private final int upperDepth;
   private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 16;
+  /**
+   * dense, temporary representation of a tree
+   */
+  private List<short[]> tempTree = new ArrayList<>();
 
   public SmallDAGTree(int depth) {
     this.depth = depth;
@@ -114,6 +121,96 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
   @Override
   public void set(Octree.Node node, int x, int y, int z) {
     set(node.type, x, y, z);
+  }
+
+  static private int splitBy3(int a)
+  {
+    int x = a & 0xff; // we only look at the first 8 bits
+    // Here we have the bits          abcd efgh
+    x = (x | x << 8) & 0x0f00f00f; // shift left 32 bits, OR with self, and 0001000000001111000000001111000000001111000000001111000000000000
+    // Here we have         abcd 0000 0000 efgh
+    x = (x | x << 4) & 0xc30c30c3; // shift left 32 bits, OR with self, and 0001000011000011000011000011000011000011000011000011000100000000
+    // Here we have    ab00 00cd 0000 ef00 00gh
+    x = (x | x << 2) & 0x49249249;
+    // Here we have a0 0b00 c00d 00e0 0f00 g00h
+    return x;
+  }
+
+  @Override
+  public void setCube(int cubeDepth, int[] types, int x, int y, int z) {
+    if(cubeDepth > 6) {
+      Octree.OctreeImplementation.super.setCube(cubeDepth, types, x, y, z);
+      return;
+    }
+
+    int size = 1 << cubeDepth;
+
+    for(int nextLevel = tempTree.size(); nextLevel <= cubeDepth; ++nextLevel)
+      tempTree.add(new short[1 << (3*nextLevel)]);
+
+    // Write all the types from in the last level of the temp tree in morton order
+    // (so children are back to back in the array)
+    for(int cz = 0; cz < size; ++cz) {
+      for(int cy = 0; cy < size; ++cy) {
+        for(int cx = 0; cx < size; ++cx) {
+          int linearIdx = (cz << (2*cubeDepth)) + (cy << cubeDepth) + cx;
+          int mortonIdx = (splitBy3(cx) << 2) | (splitBy3(cy) << 1) | splitBy3(cz);
+          tempTree.get(cubeDepth)[mortonIdx] = (short) -SmallDAG.bigToSmall(types[linearIdx]);
+        }
+      }
+    }
+
+    // Construct levels from the level deeper until the root of the temp tree
+    for(int curDepth = cubeDepth-1; curDepth >= 0; --curDepth) {
+      int numElem = (1 << (3 * curDepth));
+      for(int parentIdx = 0; parentIdx < numElem; ++parentIdx)
+      {
+        int childrenIdx = parentIdx * 8;
+        boolean mergeable = true;
+        short firstType = tempTree.get(curDepth+1)[childrenIdx];
+        for(int childNo = 1; childNo < 8; ++childNo) {
+          if(tempTree.get(curDepth+1)[childrenIdx+childNo] > 0) {
+            mergeable = false;
+            break;
+          }
+          if(firstType == -SMALL_ANY_TYPE)
+            firstType = tempTree.get(curDepth+1)[childrenIdx+childNo];
+          else if(firstType != tempTree.get(curDepth+1)[childrenIdx+childNo] && tempTree.get(curDepth+1)[childrenIdx+childNo] != -SMALL_ANY_TYPE) {
+            mergeable = false;
+            break;
+          }
+        }
+        if(mergeable)
+        {
+          tempTree.get(curDepth)[parentIdx] = firstType;
+        }
+        else
+        {
+          tempTree.get(curDepth)[parentIdx] = 1;
+        }
+      }
+    }
+
+    int nodeIndex = 0;
+    for(int i = depth - 1; i >= 6; --i) {
+      if(treeData[nodeIndex] <= 0) {
+        subdivideNode(nodeIndex);
+      }
+
+      int xbit = 1 & (x >> i);
+      int ybit = 1 & (y >> i);
+      int zbit = 1 & (z >> i);
+      int position = (xbit << 2) | (ybit << 1) | zbit;
+      nodeIndex = treeData[nodeIndex] + position;
+    }
+    int dagIndex = treeData[nodeIndex];
+    if(dagIndex <= 0) {
+      dags.add(new SmallDAG());
+      dagIndex = dags.size();
+      treeData[nodeIndex] = dagIndex;
+    }
+    SmallDAG dag = dags.get(dagIndex-1);
+    dag.setCube(cubeDepth, tempTree, x, y, z);
   }
 
   @Override

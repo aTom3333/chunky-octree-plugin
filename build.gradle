@@ -25,6 +25,6 @@ repositories {
 }
 
 dependencies {
-    compile 'se.llbit:chunky-core:2.4.0-snapshot'
+    compile 'se.llbit:chunky-core:2.4.0-snapshot2'
     testCompile 'junit:junit:4.12'
 }

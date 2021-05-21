@@ -5,6 +5,7 @@ import se.llbit.math.Octree;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Function;
 
 import static se.llbit.math.Octree.ANY_TYPE;
@@ -40,7 +41,7 @@ public class SmallDAG {
    * Chosen to fit in 15 bits (in a way to still be a positive number
    * when stored in a 16 bits integer)
    */
-  private static final int SMALL_ANY_TYPE = 0x7FFF;
+  public static final int SMALL_ANY_TYPE = 0x7FFF;
 
   /**
    * Hash map: hash of subtree -> index of subtree + number of use of the subtree
@@ -64,14 +65,14 @@ public class SmallDAG {
   public static class TypeToBigException extends RuntimeException {
   }
 
-  private static int smallToBig(short smallType) {
+  public static int smallToBig(short smallType) {
     int type = ((int) smallType) & 0x7FFF;
     if(type == SMALL_ANY_TYPE)
       type = ANY_TYPE;
     return type;
   }
 
-  private static short bigToSmall(int type) {
+  public static short bigToSmall(int type) {
     if(type != ANY_TYPE && type > 0x7FFF)
       throw new TypeToBigException();
     return (short) (type == ANY_TYPE ? SMALL_ANY_TYPE : type);
@@ -582,6 +583,121 @@ public class SmallDAG {
     }
   }
 
+  public void setCube(int cubeDepth, List<short[]> tempTree, int x, int y, int z) {
+    int[] parents = new int[DEPTH+1];
+    int[] childNumbers = new int[DEPTH+1];
+    boolean[] canChangeInPlace = new boolean[DEPTH+1];
+    int nodeIndex = 0;
+    int parentLevel = DEPTH;
+    int position = 0;
+    short[] siblings = new short[8];
+    int level;
+    for(level = DEPTH; level >= cubeDepth; --level) {
+      parents[level] = nodeIndex;
+
+      if(treeData[nodeIndex] <= 0) {
+        // subdivide node
+        prepareAncestorsForEditing(parents, canChangeInPlace, level+1);
+
+        Arrays.fill(siblings, treeData[nodeIndex]);
+        short hash = hashSubTree(siblings);
+        int hashMapIndex = addSiblings(siblings, hash);
+        updateAncestorsAfterEdit(parents, childNumbers, siblings, level, hashMapIndex, canChangeInPlace);
+        nodeIndex = parents[level];
+
+        parentLevel = level;
+      }
+      int xbit = 1 & (x >> level);
+      int ybit = 1 & (y >> level);
+      int zbit = 1 & (z >> level);
+      position = (xbit << 2) | (ybit << 1) | zbit;
+      childNumbers[level] = position;
+      nodeIndex = (treeData[nodeIndex] << 3) + position;
+    }
+
+    ++level;
+
+    prepareAncestorsForEditing(parents, canChangeInPlace, level);
+    short siblingsToEditIndex = treeData[parents[level]];
+    System.arraycopy(treeData, siblingsToEditIndex << 3, siblings, 0, 8);
+
+    if(siblings[childNumbers[level]] > 0) {
+      // free the subtree that is about to be replaced
+      maybeFreeSubtree(siblings[childNumbers[level]]);
+    }
+    assert siblings[childNumbers[level]] <= 0;
+
+    short indexOfInsertedSubTree = insertTempTree(tempTree, 0, 0);
+
+    siblings[childNumbers[level]] = indexOfInsertedSubTree;
+    short hash = hashSubTree(siblings);
+    int hashMapIndex = editSiblings(siblingsToEditIndex, canChangeInPlace[level], siblings, hash);
+    updateAncestorsAfterEdit(parents, childNumbers, siblings, level, hashMapIndex, canChangeInPlace);
+
+
+    // Merge nodes where all children have been set to the same type.
+    if(parentLevel >= DEPTH)
+      parentLevel = DEPTH-1;
+    for(int mergeLevel = 0; mergeLevel <= parentLevel; ++mergeLevel) {
+      int parentIndex = parents[mergeLevel];
+
+      boolean allSame = true;
+      short siblingsIndex = treeData[parentIndex];
+      int longSiblingsIndex = siblingsIndex << 3;
+      short first = treeData[longSiblingsIndex];
+      if(first > 0)
+        break;
+      for(int j = 1; j < 8; ++j) {
+        if(first != treeData[longSiblingsIndex + j]) {
+          allSame = false;
+          break;
+        }
+      }
+
+      if(allSame) {
+        prepareAncestorsForEditing(parents, canChangeInPlace, mergeLevel+1);
+        if(releaseHashMapElement(siblingsIndex, hashSubTree(siblingsIndex)))
+          freeSpace(siblingsIndex);
+        short parentSiblingsIndex = treeData[parents[mergeLevel+1]];
+        int longParentSiblingsIndex = parentSiblingsIndex << 3;
+        System.arraycopy(treeData, longParentSiblingsIndex, siblings, 0, 8);
+        siblings[childNumbers[mergeLevel+1]] = first;
+        hashMapIndex = editSiblings(parentSiblingsIndex, canChangeInPlace[mergeLevel+1], siblings, hashSubTree(siblings));
+        updateAncestorsAfterEdit(parents, childNumbers, siblings, mergeLevel+1, hashMapIndex, canChangeInPlace);
+      } else {
+        break;
+      }
+    }
+  }
+
+  private short insertTempTree(List<short[]> tempTree, int level, int startIdx) {
+    if(tempTree.get(level)[startIdx] <= 0)
+      return tempTree.get(level)[startIdx];
+
+    short[] siblings = new short[8];
+    for(int i = 0; i < 8; ++i) {
+      siblings[i] = insertTempTree(tempTree, level+1, startIdx*8 + i);
+    }
+    int hashMapIndex = addSiblings(siblings, hashSubTree(siblings));
+
+    return indexMap[hashMapIndex];
+  }
+
+  private void maybeFreeSubtree(short siblingIndex) {
+    short hash = hashSubTree(siblingIndex);
+    // Decrement the ref counter of the node
+    if(releaseHashMapElement(siblingIndex, hash)) {
+      // if the node has been removed from the hash map (because refcount == 0)
+      // do the same operation on its children and free it
+      for(int i = 0; i < 8; ++i) {
+        short childIndex = treeData[siblingIndex*8 + i];
+        if(childIndex > 0)
+          maybeFreeSubtree(childIndex);
+      }
+      freeSpace(siblingIndex);
+    }
+  }
+
   private void detectCycle() {
     ArrayList<Short> visited = new ArrayList<>();
     visited.add((short) 0);
@@ -691,8 +807,21 @@ public class SmallDAG {
 
   public static void main(String[] args) {
     SmallDAG t = new SmallDAG();
-    t.set(3, 0, 0, 0);
-    t.set(0, 0, 0, 0);
+    ArrayList<short[]> tempTree = new ArrayList<>();
+    tempTree.add(new short[]{1});
+    tempTree.add(new short[]{0, -1, 0, 0, 1, 1, 1, 0});
+    tempTree.add(new short[]{
+            0, 0, 0, 0, 0, 0, 0, 0, // unused
+            0, 0, 0, 0, 0, 0, 0, 0, // unused
+            0, 0, 0, 0, 0, 0, 0, 0, // unused
+            0, 0, 0, 0, 0, 0, 0, 0, // unused
+            0, 0, -1, 0, 0, 0, -1, 0,
+            0, 0, 0, 0, -1, 0, 0, 0,
+            0, 0, -1, 0, 0, 0, -1, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, // unused
+    });
+    t.setCube(2, tempTree, 0, 0, 0);
+    t.setCube(2, tempTree, 0, 0, 0);
     System.out.println("yo");
   }
 
