@@ -3,12 +3,15 @@ package dev.ferrand.chunky.octree.utils;
 import it.unimi.dsi.fastutil.ints.IntIntMutablePair;
 import se.llbit.math.Octree;
 
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
 import static se.llbit.math.Octree.ANY_TYPE;
+import static se.llbit.math.Octree.BRANCH_NODE;
 
 public class SmallDAG {
   /**
@@ -803,6 +806,32 @@ public class SmallDAG {
     indexMap = null;
     countMap = null;
     cachedHashes = null;
+  }
+
+  private short insertStreamTree(DataInputStream in) throws IOException {
+    int type = in.readInt();
+    if(type != BRANCH_NODE)
+      return (short)-bigToSmall(type);
+
+    short[] siblings = new short[8];
+    for(int i = 0; i < 8; ++i) {
+      siblings[i] = insertStreamTree(in);
+    }
+    int hashMapIndex = addSiblings(siblings, hashSubTree(siblings));
+
+    return indexMap[hashMapIndex];
+  }
+
+  public void load(DataInputStream in) throws IOException {
+    short[] siblings = new short[8];
+    for(int i = 0; i < 8; ++i) {
+      siblings[i] = insertStreamTree(in);
+    }
+    int hashMapIndex = addSiblings(siblings, hashSubTree(siblings));
+
+    short value = indexMap[hashMapIndex];
+    treeData[0] = value;
+    removeHashMapData();
   }
 
   public static void main(String[] args) {

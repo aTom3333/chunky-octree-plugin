@@ -11,8 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static dev.ferrand.chunky.octree.utils.SmallDAG.SMALL_ANY_TYPE;
-import static se.llbit.math.Octree.ANY_TYPE;
-import static se.llbit.math.Octree.BRANCH_NODE;
+import static se.llbit.math.Octree.*;
+import static se.llbit.math.Octree.DATA_FLAG;
 
 public class SmallDAGTree implements Octree.OctreeImplementation {
   private final ArrayList<SmallDAG> dags;
@@ -348,23 +348,32 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
   static private SmallDAGTree load(DataInputStream in) throws IOException {
     int depth = in.readInt();
     SmallDAGTree tree = new SmallDAGTree(depth);
-    tree.loadNode(in, depth-1, 0, 0, 0);
+    tree.loadNode(in, depth-1, 0);
     return tree;
   }
 
-  private void loadNode(DataInputStream in, int level, int x, int y, int z) throws IOException {
+  private void loadNode(DataInputStream in, int level, int nodeIndex) throws IOException {
     int type = in.readInt();
-    if(type == BRANCH_NODE) {
-      for(int dx = 0; dx < 2; ++dx)
-      for(int dy = 0; dy < 2; ++dy)
-      for(int dz = 0; dz < 2; ++dz) {
-        loadNode(in, level-1, x + (dx << level), y + (dy << level), z + (dz << level));
+
+    if(level == 5 && type == BRANCH_NODE) {
+      SmallDAG dag = new SmallDAG();
+      dags.add(dag);
+      int dagIndex = dags.size();
+      treeData[nodeIndex] = dagIndex;
+      dag.load(in);
+    } else if(type == BRANCH_NODE) {
+      int childrenIndex = findSpace();
+      treeData[nodeIndex] = childrenIndex;
+      for(int i = 0; i < 8; ++i) {
+        loadNode(in, level-1, childrenIndex + i);
       }
     } else {
-      for(int localX = x; localX < x + (1 << (level+1)); ++localX)
-      for(int localY = y; localY < y + (1 << (level+1)); ++localY)
-      for(int localZ = z; localZ < z + (1 << (level+1)); ++localZ)
-        set(type, localX, localY, localZ);
+      if((type & DATA_FLAG) == 0) {
+        treeData[nodeIndex] = -type; // negation of type
+      } else {
+        int data = in.readInt();
+        treeData[nodeIndex] = -(type ^ DATA_FLAG);
+      }
     }
   }
 
