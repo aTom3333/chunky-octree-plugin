@@ -97,11 +97,6 @@ public class PackedOctree extends AbstractOctreeImplementation {
     return -treeData[((NodeId) node).nodeIndex];
   }
 
-  @Override
-  public int getData(Octree.NodeId node) {
-    return 0;
-  }
-
   /**
    * A custom exception that signals the octree is too big for this implementation
    */
@@ -231,26 +226,8 @@ public class PackedOctree extends AbstractOctreeImplementation {
     return treeData[firstNodeIndex] == treeData[secondNodeIndex]; // compare types
   }
 
-  /**
-   * Compare two nodes
-   *
-   * @param firstNodeIndex The index of the first node
-   * @param secondNode     The second node (most likely outside of tree)
-   * @return true id the nodes compare equals, false otherwise
-   */
-  private boolean nodeEquals(int firstNodeIndex, Node secondNode) {
-    boolean firstIsBranch = treeData[firstNodeIndex] > 0;
-    boolean secondIsBranch = (secondNode.type == BRANCH_NODE);
-    return ((firstIsBranch && secondIsBranch) || -treeData[firstNodeIndex] == secondNode.type); // compare types (don't forget that in the tree the negation of the type is stored)
-  }
-
   @Override
   public void set(int type, int x, int y, int z) {
-    set(new Node(type), x, y, z);
-  }
-
-  @Override
-  public void set(Octree.Node data, int x, int y, int z) {
     int[] parents = new int[depth]; // better to put as a field to preventallocation at each invocation?
     int nodeIndex = 0;
     int parentLevel = depth - 1;
@@ -258,7 +235,7 @@ public class PackedOctree extends AbstractOctreeImplementation {
     for(int i = depth - 1; i >= 0; --i) {
       parents[i] = nodeIndex;
 
-      if(nodeEquals(nodeIndex, data)) {
+      if(nodeEquals(nodeIndex, getNodeIndex(x, y, z))) {
         return;
       } else if(treeData[nodeIndex] <= 0) { // It's a leaf node
         subdivideNode(nodeIndex);
@@ -273,7 +250,7 @@ public class PackedOctree extends AbstractOctreeImplementation {
 
     }
     int finalNodeIndex = treeData[parents[0]] + position;
-    treeData[finalNodeIndex] = -data.type; // Store negation of the type
+    treeData[finalNodeIndex] = -type; // Store negation of the type
 
     // Merge nodes where all children have been set to the same type.
     for(int i = 0; i <= parentLevel; ++i) {
@@ -307,16 +284,6 @@ public class PackedOctree extends AbstractOctreeImplementation {
       nodeIndex = treeData[nodeIndex] + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
     }
     return nodeIndex;
-  }
-
-  @Override
-  public Node get(int x, int y, int z) {
-    int nodeIndex = getNodeIndex(x, y, z);
-
-    Node node = new Node(treeData[nodeIndex] > 0 ? BRANCH_NODE : -treeData[nodeIndex]);
-
-    // Return dummy Node, will work if only type and data are used, breaks if children are needed
-    return node;
   }
 
   @Override
@@ -357,12 +324,7 @@ public class PackedOctree extends AbstractOctreeImplementation {
         loadNode(in, childrenIndex + i);
       }
     } else {
-      if((type & DATA_FLAG) == 0) {
-        treeData[nodeIndex] = -type; // negation of type
-      } else {
-        int data = in.readInt();
-        treeData[nodeIndex] = -(type ^ DATA_FLAG);
-      }
+      treeData[nodeIndex] = -type; // negation of type
     }
   }
 

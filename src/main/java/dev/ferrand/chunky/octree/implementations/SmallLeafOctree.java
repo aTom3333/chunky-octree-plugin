@@ -132,11 +132,6 @@ public class SmallLeafOctree implements OctreeImplementation {
     return type;
   }
 
-  @Override
-  public int getData(Octree.NodeId node) {
-    return 0;
-  }
-
   /**
    * A custom exception that signals the octree is too big for this implementation
    */
@@ -340,10 +335,9 @@ public class SmallLeafOctree implements OctreeImplementation {
 
   @Override
   public void set(int type, int x, int y, int z) {
-    set(new Node(type), x, y, z);
+    set(new Node(type), x, y, z); // TODO remove Node wrapper
   }
 
-  @Override
   public void set(Node data, int x, int y, int z) {
     int[] parents = new int[depth]; // better to put as a field to preventallocation at each invocation?
     int nodeIndex = 0;
@@ -487,11 +481,6 @@ public class SmallLeafOctree implements OctreeImplementation {
   }
 
   @Override
-  public Octree.Node get(int x, int y, int z) {
-    return new Octree.Node(getType(x, y, z));
-  }
-
-  @Override
   public Material getMaterial(int x, int y, int z, BlockPalette palette) {
     int type = getType(x, y, z);
     return palette.get(type);
@@ -510,14 +499,7 @@ public class SmallLeafOctree implements OctreeImplementation {
         storeNode(out, getChild(node, i));
       }
     } else {
-      int type = getType(node);
-      int data = getData(node);
-      if(data != 0) {
-        out.writeInt(type | Octree.DATA_FLAG);
-        out.writeInt(data);
-      } else {
-        out.writeInt(type);
-      }
+      out.writeInt(getType(node));
     }
   }
 
@@ -581,12 +563,7 @@ public class SmallLeafOctree implements OctreeImplementation {
         }
       }
     } else {
-      if((type & DATA_FLAG) == 0) {
-        treeData[nodeIndex] = -type; // negation of type
-      } else {
-        int data = in.readInt();
-        treeData[nodeIndex] = -(type ^ DATA_FLAG);
-      }
+      treeData[nodeIndex] = -type; // negation of type
     }
   }
 

@@ -50,11 +50,6 @@ public class DiskOctree extends AbstractOctreeImplementation {
         return typeFromValue(getAt(((NodeId)node).nodeIndex));
     }
 
-    @Override
-    public int getData(Octree.NodeId node) {
-        return dataFromValue(getAt(((NodeId)node).nodeIndex));
-    }
-
     public DiskOctree(int depth) throws IOException {
         this.depth = depth;
         treeFile = File.createTempFile("disk-octree", ".bin");
@@ -83,15 +78,13 @@ public class DiskOctree extends AbstractOctreeImplementation {
     }
 
     private static int typeFromValue(long value) {
+        // TODO there is no data anymore so the full 64 bits could be used for the type
         return -(int) ((value & 0xFFFFFFFF00000000L) >> 32);
     }
 
-    private static int dataFromValue(long value) {
-        return (int) (value & 0xFFFFFFFFL);
-    }
-
-    private static long valueFromTypeData(int type, int data) {
-        return (long)(-type) << 32 | data;
+    private static long valueFromType(int type) {
+        // TODO there is no data anymore so the full 64 bits could be used for the type
+        return (long)(-type) << 32;
     }
 
     private long findSpace() {
@@ -139,17 +132,15 @@ public class DiskOctree extends AbstractOctreeImplementation {
         if(firstIsBranch && secondIsBranch)
             return false;
         else if(!firstIsBranch && !secondIsBranch)
-            return typeFromValue(value1) == secondNode.type // compare types
-                    && dataFromValue(value1) == secondNode.getData(); // compare data
+            return typeFromValue(value1) == secondNode.type;
         return false;
     }
 
     @Override
     public void set(int type, int x, int y, int z) {
-        set(new Octree.Node(type), x, y, z);
+        set(new Octree.Node(type), x, y, z); // TODO remove Node wrapper
     }
 
-    @Override
     public void set(Octree.Node data, int x, int y, int z) {
         long[] parents = new long[depth]; // better to put as a field to preventallocation at each invocation?
         long nodeIndex = 0;
@@ -173,7 +164,7 @@ public class DiskOctree extends AbstractOctreeImplementation {
 
         }
         long finalNodeIndex = getAt(parents[0]) + position;
-        setAt(finalNodeIndex, valueFromTypeData(data.type, data.getData()));
+        setAt(finalNodeIndex, valueFromType(data.type));
 
         // Merge nodes where all children have been set to the same type.
         for (int i = 0; i <= parentLevel; ++i) {
@@ -223,7 +214,6 @@ public class DiskOctree extends AbstractOctreeImplementation {
     private void finalizationNode(long nodeIndex) {
         boolean canMerge = true;
         int mergedType = ANY_TYPE;
-        int mergedData = 0;
         for(int i = 0; i < 8; ++i) {
             long childIndex = getAt(nodeIndex) + i;
             if(getAt(childIndex) > 0) {
@@ -237,14 +227,13 @@ public class DiskOctree extends AbstractOctreeImplementation {
                 if(mergedType == ANY_TYPE) {
                     long value = getAt(childIndex);
                     mergedType = typeFromValue(value);
-                    mergedData = dataFromValue(value);
-                } else if(!(typeFromValue(getAt(childIndex)) == ANY_TYPE || getAt(childIndex) == valueFromTypeData(mergedType, mergedData))) {
+                } else if(!(typeFromValue(getAt(childIndex)) == ANY_TYPE || getAt(childIndex) == valueFromType(mergedType))) {
                     canMerge = false;
                 }
             }
         }
         if(canMerge) {
-            mergeNode(nodeIndex, valueFromTypeData(mergedType, mergedData));
+            mergeNode(nodeIndex, valueFromType(mergedType));
         }
     }
 
@@ -269,12 +258,7 @@ public class DiskOctree extends AbstractOctreeImplementation {
                 loadNode(in, childrenIndex + i);
             }
         } else {
-            if ((type & DATA_FLAG) == 0) {
-                setAt(nodeIndex, valueFromTypeData(type, 0));
-            } else {
-                int data = in.readInt();
-                setAt(nodeIndex, valueFromTypeData(type ^ DATA_FLAG, 0));
-            }
+            setAt(nodeIndex, valueFromType(type));
         }
     }
 

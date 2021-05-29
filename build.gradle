@@ -22,9 +22,13 @@ compileJava {
 repositories {
     mavenLocal()
     mavenCentral()
+	maven {
+        url 'https://repo.lemaik.de/'
+	}
 }
 
 dependencies {
-    compile 'se.llbit:chunky-core:2.4.0-snapshot5'
+    compileOnly 'se.llbit:chunky-core:2.4.0-SNAPSHOT'
+    testCompile 'se.llbit:chunky-core:2.4.0-SNAPSHOT'
     testCompile 'junit:junit:4.12'
 }

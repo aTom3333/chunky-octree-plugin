@@ -28,12 +28,6 @@ public abstract class AbstractOctreeImplementation implements Octree.OctreeImple
     }
 
     @Override
-    public Octree.Node get(int x, int y, int z) {
-        Octree.NodeId node = getHelper(x, y, z);
-        return new Octree.Node(getType(node));
-    }
-
-    @Override
     public Material getMaterial(int x, int y, int z, BlockPalette palette) {
         return palette.get(getType(getHelper(x, y, z)));
     }
@@ -51,14 +45,7 @@ public abstract class AbstractOctreeImplementation implements Octree.OctreeImple
                 storeNode(out, getChild(node, i));
             }
         } else {
-            int type = getType(node);
-            int data = getData(node);
-            if(data != 0) {
-                out.writeInt(type | Octree.DATA_FLAG);
-                out.writeInt(data);
-            } else {
-                out.writeInt(type);
-            }
+            out.writeInt(getType(node));
         }
     }
 
