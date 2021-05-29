@@ -94,7 +94,7 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
         public boolean isBranch = true;
         public long childrenIndex = 0;
         public int type = 0;
-        public int data = 0;
+        public int data = 0; // TODO remove data
 
         public void makeBranch(long childrenIndex) {
             isBranch = true;
@@ -401,23 +401,7 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
     }
 
     @Override
-    public int getData(Octree.NodeId nodeId) {
-        if(((NodeIdInterface)nodeId).isRoot()) {
-            return 0;
-        } else {
-            NodeId node = ((NodeId)nodeId);
-            return getDataOnly(node.groupIndex, node.childNo);
-        }
-    }
-
-    @Override
     public void set(int type, int x, int y, int z) {
-        Log.error("This octree doesn't support write operation. To use it you have to load an existing octree");
-        throw new RuntimeException("Operation not supported");
-    }
-
-    @Override
-    public void set(Octree.Node node, int x, int y, int z) {
         Log.error("This octree doesn't support write operation. To use it you have to load an existing octree");
         throw new RuntimeException("Operation not supported");
     }
@@ -434,12 +418,6 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
         }
 
         return node;
-    }
-
-    @Override
-    public Octree.Node get(int x, int y, int z) {
-        Octree.NodeId node = getHelper(x, y, z);
-        return new Octree.DataNode(getType(node), getData(node));
     }
 
     @Override
@@ -460,14 +438,7 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
                 storeNode(out, getChild(node, i));
             }
         } else {
-            int type = getType(node);
-            int data = getData(node);
-            if(data != 0) {
-                out.writeInt(type | Octree.DATA_FLAG);
-                out.writeInt(data);
-            } else {
-                out.writeInt(type);
-            }
+            out.writeInt(getType(node));
         }
     }
 
@@ -528,15 +499,10 @@ public class CompressedSiblingsOctree implements Octree.OctreeImplementation {
             ancestors[currentDepth].siblings[childNumber].childrenIndex = savedIndex;
 
         } else {
-            int data = 0;
-            if((type & Octree.DATA_FLAG) != 0) {
-                type ^= Octree.DATA_FLAG;
-                data = in.readInt();
-            }
             if(type == Octree.ANY_TYPE) {
                 type = 0; // Replace by anything but don't keep it because we can't store it
             }
-            ancestors[currentDepth].siblings[childNumber].makeLeaf(type, data);
+            ancestors[currentDepth].siblings[childNumber].makeLeaf(type, 0);
         }
     }
 
