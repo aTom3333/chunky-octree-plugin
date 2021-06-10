@@ -235,7 +235,7 @@ public class PackedOctree extends AbstractOctreeImplementation {
     for(int i = depth - 1; i >= 0; --i) {
       parents[i] = nodeIndex;
 
-      if(nodeEquals(nodeIndex, getNodeIndex(x, y, z))) {
+      if(-treeData[nodeIndex] == type) {
         return;
       } else if(treeData[nodeIndex] <= 0) { // It's a leaf node
         subdivideNode(nodeIndex);
