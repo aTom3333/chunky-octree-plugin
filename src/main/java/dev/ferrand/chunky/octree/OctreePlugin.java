@@ -18,7 +18,6 @@ public class OctreePlugin implements Plugin {
             return tabs;
         });
 
-        CompressedSiblingsOctree.initImplementation();
         DiskOctree.initImplementation();
         GcPackedOctree.initImplementation();
         StatsOctree.initImplementation();

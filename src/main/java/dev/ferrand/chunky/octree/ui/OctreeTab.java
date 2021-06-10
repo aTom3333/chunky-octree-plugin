@@ -21,10 +21,6 @@ import java.util.ResourceBundle;
 
 public class OctreeTab extends ScrollPane implements RenderControlsTab, Initializable {
 
-    @FXML private IntegerAdjuster compressedSiblings_bytesForIndex;
-    @FXML private IntegerAdjuster compressedSiblings_bytesForType;
-    @FXML private IntegerAdjuster compressedSiblings_bitsForData;
-
     private static class CacheSize {
         public final int shift;
         private static String[] prefix = {"", "k", "M", "G"};
@@ -75,31 +71,6 @@ public class OctreeTab extends ScrollPane implements RenderControlsTab, Initiali
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        compressedSiblings_bytesForIndex.setName("Bytes for index");
-        compressedSiblings_bytesForIndex.setRange(1, 8);
-        compressedSiblings_bytesForIndex.setAndUpdate(PersistentSettings.settings.getInt("compressedSiblings.bytesForIndex", 4));
-        compressedSiblings_bytesForIndex.setTooltip("The number of bytes used to represent an index.\n" +
-                "Using less will reduce memory usage but the maximum nodes that can be stored will be lower.\n" +
-                "4 is a good default.");
-        compressedSiblings_bytesForIndex.onValueChange(val -> PersistentSettings.setIntOption("compressedSiblings.bytesForIndex", val));
-
-        compressedSiblings_bytesForType.setName("Bytes for type");
-        compressedSiblings_bytesForType.setRange(1, 4);
-        compressedSiblings_bytesForType.setAndUpdate(PersistentSettings.settings.getInt("compressedSiblings.bytesForType", 2));
-        compressedSiblings_bytesForType.setTooltip("The number of bytes used to represent a block type.\n" +
-                "Using less will reduce memory usage but will limit the number of different blocks possible in the scene.\n" +
-                "2 is a good default.");
-        compressedSiblings_bytesForType.onValueChange(val -> PersistentSettings.setIntOption("compressedSiblings.bytesForType", val));
-
-        compressedSiblings_bitsForData.setName("Bits for data");
-        compressedSiblings_bitsForData.setRange(1, 29);
-        compressedSiblings_bitsForData.setAndUpdate(PersistentSettings.settings.getInt("compressedSiblings.bitsForData", 14));
-        compressedSiblings_bitsForData.setTooltip("The number of bits used to index a dictionary of data.\n" +
-                "Using less will reduce memory usage but will limit the number of different data value possible in a scene.\n" +
-                "14 is a good default.");
-        compressedSiblings_bitsForData.onValueChange(val -> PersistentSettings.setIntOption("compressedSiblings.bitsForData", val));
-
-
         ArrayList<CacheSize> sizes = new ArrayList<>();
         for(int i = 7; i <= 17; ++i) {
             sizes.add(new CacheSize(i));
