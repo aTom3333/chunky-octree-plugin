@@ -12,7 +12,6 @@ import java.util.List;
 
 import static dev.ferrand.chunky.octree.utils.SmallDAG.SMALL_ANY_TYPE;
 import static se.llbit.math.Octree.*;
-import static se.llbit.math.Octree.DATA_FLAG;
 
 public class SmallDAGTree implements Octree.OctreeImplementation {
   private final ArrayList<SmallDAG> dags;
@@ -118,11 +117,6 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
     dag.set(type, x, y, z);
   }
 
-  @Override
-  public void set(Octree.Node node, int x, int y, int z) {
-    set(node.type, x, y, z);
-  }
-
   static private int splitBy3(int a)
   {
     int x = a & 0xff; // we only look at the first 8 bits
@@ -214,30 +208,6 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
   }
 
   @Override
-  public Octree.Node get(int x, int y, int z) {
-    int index = 0;
-    int level = depth;
-    while(true) {
-      --level;
-      int lx = x >>> level;
-      int ly = y >>> level;
-      int lz = z >>> level;
-      index = treeData[index] + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
-      if(index <= 0)
-        return new Octree.Node(-index);
-      if(level == 6) {
-        int dagIndex = treeData[index];
-        if(dagIndex <= 0)
-          return new Octree.Node(-dagIndex);
-        if(dagIndex > dags.size())
-          throw new RuntimeException("oob");
-        SmallDAG dag = dags.get(dagIndex-1);
-        return new Octree.Node(dag.get(x, y, z));
-      }
-    }
-  }
-
-  @Override
   public void getWithLevel(IntIntMutablePair outTypeAndLevel, int x, int y, int z) {
     int index = 0;
     int level = depth;
@@ -264,7 +234,33 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
 
   @Override
   public Material getMaterial(int x, int y, int z, BlockPalette blockPalette) {
-    return blockPalette.get(get(x, y, z).type);
+    int index = 0;
+    int level = depth;
+    int type;
+    while(true) {
+      --level;
+      int lx = x >>> level;
+      int ly = y >>> level;
+      int lz = z >>> level;
+      index = treeData[index] + (((lx & 1) << 2) | ((ly & 1) << 1) | (lz & 1));
+      if(index <= 0) {
+        type = -index;
+        break;
+      }
+      if(level == 6) {
+        int dagIndex = treeData[index];
+        if(dagIndex <= 0) {
+          type = -dagIndex;
+          break;
+        }
+        if(dagIndex > dags.size())
+          throw new RuntimeException("oob");
+        SmallDAG dag = dags.get(dagIndex-1);
+        type = dag.get(x, y, z);
+        break;
+      }
+    }
+    return blockPalette.get(type);
   }
 
   @Override
@@ -311,11 +307,6 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
   }
 
   @Override
-  public int getData(Octree.NodeId nodeId) {
-    return 0;
-  }
-
-  @Override
   public void endFinalization() {
     for(SmallDAG dag : dags)
       dag.removeHashMapData();
@@ -334,14 +325,7 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
         storeNode(out, getChild(node, i));
       }
     } else {
-      int type = getType(node);
-      int data = getData(node);
-      if(data != 0) {
-        out.writeInt(type | Octree.DATA_FLAG);
-        out.writeInt(data);
-      } else {
-        out.writeInt(type);
-      }
+      out.writeInt(getType(node));
     }
   }
 
@@ -368,12 +352,7 @@ public class SmallDAGTree implements Octree.OctreeImplementation {
         loadNode(in, level-1, childrenIndex + i);
       }
     } else {
-      if((type & DATA_FLAG) == 0) {
-        treeData[nodeIndex] = -type; // negation of type
-      } else {
-        int data = in.readInt();
-        treeData[nodeIndex] = -(type ^ DATA_FLAG);
-      }
+      treeData[nodeIndex] = -type; // negation of type
     }
   }
 

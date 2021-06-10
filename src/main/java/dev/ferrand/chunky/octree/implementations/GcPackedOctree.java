@@ -102,11 +102,6 @@ public class GcPackedOctree implements OctreeImplementation {
     return -treeData[((NodeId) node).nodeIndex];
   }
 
-  @Override
-  public int getData(Octree.NodeId node) {
-    return 0;
-  }
-
   /**
    * A custom exception that signals the octree is too big for this implementation
    */
@@ -266,10 +261,9 @@ public class GcPackedOctree implements OctreeImplementation {
 
   @Override
   public void set(int type, int x, int y, int z) {
-    set(new Node(type), x, y, z);
+    set(new Node(type), x, y, z); // TODO remove Node wrapper
   }
 
-  @Override
   public void set(Node data, int x, int y, int z) {
     ++insertSinceLastMerge;
     int parent = 0;
@@ -326,16 +320,6 @@ public class GcPackedOctree implements OctreeImplementation {
   }
 
   @Override
-  public Node get(int x, int y, int z) {
-    int nodeIndex = getNodeIndex(x, y, z);
-
-    Node node = new Node(-treeData[nodeIndex]);
-
-    // Return dummy Node, will work if only type and data are used, breaks if children are needed
-    return node;
-  }
-
-  @Override
   public Material getMaterial(int x, int y, int z, BlockPalette palette) {
     // Building the dummy node is useless here
     int nodeIndex = getNodeIndex(x, y, z);
@@ -355,14 +339,7 @@ public class GcPackedOctree implements OctreeImplementation {
         storeNode(out, getChild(node, i));
       }
     } else {
-      int type = getType(node);
-      int data = getData(node);
-      if(data != 0) {
-        out.writeInt(type | Octree.DATA_FLAG);
-        out.writeInt(data);
-      } else {
-        out.writeInt(type);
-      }
+      out.writeInt(getType(node));
     }
   }
 
@@ -409,12 +386,7 @@ public class GcPackedOctree implements OctreeImplementation {
         loadNode(in, childrenIndex + i);
       }
     } else {
-      if((type & DATA_FLAG) == 0) {
-        treeData[nodeIndex] = -type; // negation of type
-      } else {
-        int data = in.readInt();
-        treeData[nodeIndex] = -(type ^ DATA_FLAG);
-      }
+      treeData[nodeIndex] = -type; // negation of type
     }
   }
 

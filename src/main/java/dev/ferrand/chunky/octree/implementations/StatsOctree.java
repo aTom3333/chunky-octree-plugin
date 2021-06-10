@@ -113,11 +113,6 @@ public class StatsOctree extends AbstractOctreeImplementation {
         return -treeData[((NodeId) node).nodeIndex];
     }
 
-    @Override
-    public int getData(Octree.NodeId node) {
-        return 0;
-    }
-
     /**
      * A custom exception that signals the octree is too big for this implementation
      */
@@ -296,15 +291,10 @@ public class StatsOctree extends AbstractOctreeImplementation {
 
     @Override
     public void set(int type, int x, int y, int z) {
-        set(new Node(type), x, y, z);
-    }
-
-    @Override
-    public void set(Node data, int x, int y, int z) {
-        if(data.type != ANY_TYPE) {
-            maxType = Math.max(maxType, data.type);
+        if(type != ANY_TYPE) {
+            maxType = Math.max(maxType, type);
         }
-        if(data.type != 0)
+        if(type != 0)
             ++blockCount;
 
         int[] parents = new int[depth]; // better to put as a field to preventallocation at each invocation?
@@ -314,7 +304,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
         for(int i = depth - 1; i >= 0; --i) {
             parents[i] = nodeIndex;
 
-            if(nodeEquals(nodeIndex, data)) {
+            if(-treeData[nodeIndex] == type) {
                 return;
             } else if(treeData[nodeIndex] <= 0) { // It's a leaf node
                 subdivideNode(nodeIndex);
@@ -329,7 +319,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
 
         }
         int finalNodeIndex = treeData[parents[0]] + position;
-        treeData[finalNodeIndex] = -data.type; // Store negation of the type
+        treeData[finalNodeIndex] = -type; // Store negation of the type
 
         int childrenIndex = treeData[parents[0]];
         FullDepthSiblings siblings = new FullDepthSiblings(
@@ -384,16 +374,6 @@ public class StatsOctree extends AbstractOctreeImplementation {
     }
 
     @Override
-    public Node get(int x, int y, int z) {
-        int nodeIndex = getNodeIndex(x, y, z);
-
-        Node node = new Node(treeData[nodeIndex] > 0 ? BRANCH_NODE : -treeData[nodeIndex]);
-
-        // Return dummy Node, will work if only type and data are used, breaks if children are needed
-        return node;
-    }
-
-    @Override
     public Material getMaterial(int x, int y, int z, BlockPalette palette) {
         // Building the dummy node is useless here
         int nodeIndex = getNodeIndex(x, y, z);
@@ -433,12 +413,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
                 loadNode(in, childrenIndex + i);
             }
         } else {
-            if((type & DATA_FLAG) == 0) {
-                treeData[nodeIndex] = -type; // negation of type
-            } else {
-                int data = in.readInt();
-                treeData[nodeIndex] = -(type ^ DATA_FLAG);
-            }
+            treeData[nodeIndex] = -type; // negation of type
         }
     }
 
