@@ -143,7 +143,7 @@ public class DictionaryOctree implements OctreeImplementation {
     size = 1;
     freeHead = -1; // No holes
     dict = new short[64];
-    dictSize = 0;
+    dictSize = 8; // Don't use the dictionary index 0, it would be interpreted as an air node
     initHashMap();
   }
 
@@ -155,7 +155,7 @@ public class DictionaryOctree implements OctreeImplementation {
     size = 1;
     freeHead = -1;
     dict = new short[64];
-    dictSize = 0;
+    dictSize = 8; // Don't use the dictionary index 0, it would be interpreted as an air node
     initHashMap();
   }
 
