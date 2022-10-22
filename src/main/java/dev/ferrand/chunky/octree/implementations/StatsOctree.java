@@ -1,6 +1,7 @@
 package dev.ferrand.chunky.octree.implementations;
 
 import se.llbit.chunky.PersistentSettings;
+import se.llbit.chunky.block.Block;
 import se.llbit.chunky.block.UnknownBlock;
 import se.llbit.chunky.chunk.BlockPalette;
 import se.llbit.chunky.world.Material;
@@ -84,6 +85,8 @@ public class StatsOctree extends AbstractOctreeImplementation {
     private int maxType;
     private int allocation;
     private long blockCount;
+
+    private BlockPalette palette;
 
     private static final class NodeId implements Octree.NodeId {
         int nodeIndex;
@@ -375,6 +378,7 @@ public class StatsOctree extends AbstractOctreeImplementation {
 
     @Override
     public Material getMaterial(int x, int y, int z, BlockPalette palette) {
+        this.palette = palette;
         // Building the dummy node is useless here
         int nodeIndex = getNodeIndex(x, y, z);
         if(treeData[nodeIndex] > 0) {
@@ -595,13 +599,32 @@ public class StatsOctree extends AbstractOctreeImplementation {
         showSize("memory difference if using a dictionary (with 16 bits types, with dictionary created during building)", sizeDictionaryBuilding*2 - (long)leafNodesAtFullDepth * 2);
         showSize("memory difference if using a dictionary (with 16 bits types, with dictionary created after building)", (long)fullDepthSiblingsDictionary.size()*2 - (long)leafNodesAtFullDepth * 2);
 
+        long cubeBlocks = 0;
+        long nonCubeBlocks = 0;
 
         System.out.println("Block type histogram (type: number of occurrence):");
         for(int i = 0; i < typeHistogram.length; ++i) {
             if(typeHistogram[i] > 0) {
                 System.out.printf("%d: %d\n", i, typeHistogram[i]);
+                if(palette != null && i > 0) {
+                    Block block = palette.get(i);
+                    if(block.localIntersect)
+                        nonCubeBlocks += typeHistogram[i];
+                    else
+                        cubeBlocks += typeHistogram[i];
+                }
             }
         }
+
+        long nonAirBlocks = cubeBlocks + nonCubeBlocks;
+
+        if(palette != null) {
+            show("Non air blocks", nonAirBlocks);
+            System.out.printf("Cube blocks: %,d (%f%%)\n", cubeBlocks, (double)cubeBlocks / nonAirBlocks * 100);
+            System.out.printf("Non cube blocks: %,d (%f%%)\n", nonCubeBlocks, (double)nonCubeBlocks / nonAirBlocks * 100);
+        }
+
+        System.out.println("-----");
     }
 
     private void statisticsLoading() {
