@@ -22,6 +22,8 @@ public class DiskOctree extends AbstractOctreeImplementation {
     private final int cacheSize = PersistentSettings.settings.getInt("disk.cacheSize", 11);
     private final int cacheNumber = PersistentSettings.settings.getInt("disk.cacheNumber", 2048);
 
+    private final String storageDirectory = PersistentSettings.settings.getString("disk.storageDirectory", null);
+
     private static final class NodeId implements Octree.NodeId {
         public long nodeIndex;
 
@@ -52,7 +54,12 @@ public class DiskOctree extends AbstractOctreeImplementation {
 
     public DiskOctree(int depth) throws IOException {
         this.depth = depth;
-        treeFile = File.createTempFile("disk-octree", ".bin");
+
+        if(storageDirectory == null)
+            treeFile = File.createTempFile("disk-octree", ".bin");
+        else
+            treeFile = File.createTempFile("disk-octree", ".bin", new File(storageDirectory));
+
         treeData = new SingleThreadReadWriteCache(treeFile, cacheSize, cacheNumber);
         setAt(0, 0);
         size = 1;

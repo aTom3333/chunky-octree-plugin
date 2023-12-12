@@ -4,15 +4,18 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.scene.Node;
+import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
+import javafx.stage.DirectoryChooser;
 import se.llbit.chunky.PersistentSettings;
 import se.llbit.chunky.renderer.scene.Scene;
 import se.llbit.chunky.ui.DoubleAdjuster;
 import se.llbit.chunky.ui.IntegerAdjuster;
 import se.llbit.chunky.ui.render.RenderControlsTab;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -58,6 +61,8 @@ public class OctreeTab extends ScrollPane implements RenderControlsTab, Initiali
 
     @FXML private DoubleAdjuster gcoctree_threshold;
 
+    @FXML private Button disk_storageDirectory;
+
     public OctreeTab() {
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/octree-tab.fxml"));
@@ -97,6 +102,9 @@ public class OctreeTab extends ScrollPane implements RenderControlsTab, Initiali
             PersistentSettings.setIntOption("gcoctree.threshold", (int)(double)val);
             gcoctree_threshold.set((int)(double)val);
         });
+
+        disk_storageDirectory.setOnAction(event -> browseForDirectory());
+        disk_storageDirectory.setTooltip(new Tooltip("The directory where the octree will be stored. If not set, it will be stored in the default temporary-file directory."));
     }
 
     @Override
@@ -111,5 +119,23 @@ public class OctreeTab extends ScrollPane implements RenderControlsTab, Initiali
     @Override
     public Node getTabContent() {
         return this;
+    }
+
+    private void browseForDirectory() {
+        DirectoryChooser directoryChooser = new DirectoryChooser();
+        directoryChooser.setTitle("Choose Storage Directory");
+
+        String storageDirectory = PersistentSettings.settings.getString("disk.storageDirectory", null);
+        if(storageDirectory != null)
+            directoryChooser.setInitialDirectory(new File(storageDirectory));
+        else
+            directoryChooser.setInitialDirectory(new File(System.getProperty("java.io.tmpdir")));
+
+        File selectedDirectory = directoryChooser.showDialog(disk_storageDirectory.getScene().getWindow());
+        if(selectedDirectory == null)
+            return;
+
+        PersistentSettings.settings.setString("disk.storageDirectory", selectedDirectory.getAbsolutePath());
+        disk_storageDirectory.setText("Change");
     }
 }
