@@ -8,6 +8,7 @@
 <?import javafx.scene.control.ChoiceBox?>
 <?import javafx.scene.control.Label?>
 <?import se.llbit.chunky.ui.DoubleAdjuster?>
+<?import javafx.scene.control.Button?>
 <fx:root type="javafx.scene.control.ScrollPane" xmlns="http://javafx.com/javafx/10.0.1" xmlns:fx="http://javafx.com/fxml/1">
    <content>
       <VBox spacing="10.0">
@@ -28,6 +29,12 @@
                                      </children>
                                      </HBox>
                                      <IntegerAdjuster fx:id="disk_cacheNumber" alignment="CENTER" prefHeight="26.0" prefWidth="95.0"/>
+                                     <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                         <children>
+                                             <Label text="Storage Directory:" />
+                                             <Button fx:id="disk_storageDirectory" mnemonicParsing="false" text="Browse"/>
+                                         </children>
+                                     </HBox>
                                  </children>
                                  <padding>
                                      <Insets top="5.0" />

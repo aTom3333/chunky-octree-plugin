@@ -38,6 +38,13 @@ but working with multiple threads.
  For a big scene with a lot of entities, a substancial amount of memory will be used to store those (limiting 
  the effectiveness of this implementation on loading huge scene with low amount of memory).
 
+ It is also possible to specify the path to the temporary file that will be used to store the octree data.
+ Especially with large scenes it is recommended to use a fast disk (SSD) with a lot of space available.<br>
+ The "Browse" button lets you change the storage directory. By default the system temporary directory is used. <br>
+ On Windows this is `C:\Users\<USERNAME>\AppData\Local\Temp`<br>
+ On Linux this is `/tmp`<br>
+ On MacOS this is `/var/folders/<random string>/T`
+
 ### Garbage-collected Implementation
 Available under the name `GC_PACKED`. This implementation is similar to the built-in `PACKED` implementation 
 with the difference that, instead of merging equal nodes after every insertion, merging is only done once in a while
